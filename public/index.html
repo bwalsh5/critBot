@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#121214">
+    <meta name="color-scheme" content="dark">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Design Crit-Bot</title>
+    <style>
+        :root {
+            --bg-color: #121214;
+            --card-bg: #1a1a1e;
+            --card-bg-raised: #212127;
+            --border: #2e2e36;
+            --accent: #ff4757;
+            --accent-dim: rgba(255, 71, 87, 0.14);
+            --text-main: #f5f5f7;
+            --text-muted: #a0a0aa;
+            --radius: 12px;
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        * { box-sizing: border-box; }
+
+        html { -webkit-text-size-adjust: 100%; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            /* Bottom padding clears the sticky mobile action bar. */
+            padding: 20px 16px calc(96px + var(--safe-bottom));
+            padding-left: max(16px, env(safe-area-inset-left));
+            padding-right: max(16px, env(safe-area-inset-right));
+            font-size: 16px;
+            line-height: 1.5;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .masthead { margin-bottom: 4px; }
+        .masthead h1 {
+            margin: 0;
+            font-size: 1.4rem;
+            letter-spacing: -0.6px;
+        }
+        .masthead p {
+            margin: 4px 0 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .panel {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px 16px;
+        }
+
+        h2 {
+            margin: 0 0 14px;
+            font-size: 1.05rem;
+            letter-spacing: -0.2px;
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        h2 .count {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        /* ---- Upload ---- */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: 10px;
+            padding: 28px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+            color: var(--text-main);
+        }
+        .drop-zone strong { color: var(--text-main); }
+        .drop-zone .hint { display: block; margin-top: 6px; font-size: 0.8rem; }
+
+        .upload-section.has-file .drop-zone { display: none; }
+        .upload-section.has-file .preview-wrap { margin-top: 0; }
+
+        .capture-btn {
+            display: none; /* shown on touch devices only */
+            width: 100%;
+            margin-top: 10px;
+            min-height: 48px;
+            background: var(--card-bg-raised);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        /* ---- Image editor ---- */
+        .canvas-stage {
+            position: relative;
+            width: fit-content;
+            max-width: 100%;
+            margin-top: 14px;
+            background: #0c0c0e;
+            border-radius: 8px;
+            overflow: hidden;
+            touch-action: none; /* we own the gestures */
+            line-height: 0;
+        }
+        #editorCanvas { display: block; max-width: 100%; }
+
+        .crop-box {
+            position: absolute;
+            border: 1.5px solid rgba(255,255,255,0.95);
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+            cursor: move;
+        }
+        /* Rule-of-thirds guides */
+        .crop-box::before, .crop-box::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0.35;
+        }
+        .crop-box::before {
+            background:
+                linear-gradient(to right, transparent 33.33%, #fff 33.33%, #fff calc(33.33% + 1px), transparent calc(33.33% + 1px)),
+                linear-gradient(to right, transparent 66.66%, #fff 66.66%, #fff calc(66.66% + 1px), transparent calc(66.66% + 1px));
+        }
+        .crop-box::after {
+            background:
+                linear-gradient(to bottom, transparent 33.33%, #fff 33.33%, #fff calc(33.33% + 1px), transparent calc(33.33% + 1px)),
+                linear-gradient(to bottom, transparent 66.66%, #fff 66.66%, #fff calc(66.66% + 1px), transparent calc(66.66% + 1px));
+        }
+        .handle {
+            position: absolute;
+            /* 44px touch target, 14px visible corner. */
+            width: 44px; height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .handle::after {
+            content: "";
+            width: 16px; height: 16px;
+            border: 3px solid #fff;
+            border-radius: 2px;
+        }
+        .handle.nw { top: 0; left: 0; align-items: flex-start; justify-content: flex-start; cursor: nwse-resize; }
+        .handle.ne { top: 0; right: 0; align-items: flex-start; justify-content: flex-end; cursor: nesw-resize; }
+        .handle.sw { bottom: 0; left: 0; align-items: flex-end; justify-content: flex-start; cursor: nesw-resize; }
+        .handle.se { bottom: 0; right: 0; align-items: flex-end; justify-content: flex-end; cursor: nwse-resize; }
+        .handle.nw::after { border-right: none; border-bottom: none; }
+        .handle.ne::after { border-left: none; border-bottom: none; }
+        .handle.sw::after { border-right: none; border-top: none; }
+        .handle.se::after { border-left: none; border-top: none; }
+
+        .editor-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .editor-controls .spacer { flex: 1; }
+        .straighten-row { margin-top: 8px; }
+        .icon-btn {
+            min-width: 48px;
+            min-height: 44px;
+            padding: 0 12px;
+            background: var(--card-bg-raised);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .icon-btn:hover { border-color: #45454f; }
+        .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+        .straighten {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            min-height: 44px;
+            padding: 0 12px;
+            background: var(--card-bg-raised);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .straighten input[type=range] {
+            flex: 1;
+            min-width: 60px;
+            accent-color: var(--accent);
+            height: 28px;
+        }
+        .straighten output {
+            min-width: 42px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            color: var(--text-main);
+        }
+        .crop-readout {
+            margin-top: 8px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            font-variant-numeric: tabular-nums;
+        }
+        .crop-readout .warn { color: var(--accent); }
+
+        /* ---- Receipt ---- */
+        .receipt {
+            margin: -4px 0 16px;
+            padding: 14px;
+            background: var(--card-bg-raised);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-variant-numeric: tabular-nums;
+        }
+        .receipt[hidden] { display: none; }
+        .receipt h4 {
+            margin: 0 0 10px;
+            font-size: 0.82rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+        .receipt table { width: 100%; border-collapse: collapse; }
+        .receipt td { padding: 3px 0; color: var(--text-muted); }
+        .receipt td:last-child { text-align: right; color: var(--text-main); }
+        .receipt tr.total td {
+            padding-top: 9px;
+            border-top: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .receipt tr.total td:last-child { color: var(--accent); }
+        .receipt .sub td { padding-left: 12px; font-size: 0.78rem; opacity: 0.8; }
+
+        /* ---- Usage log panel ---- */
+        .log-summary {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin: 0 0 12px;
+        }
+        .log-summary strong { color: var(--text-main); }
+
+        .preview-wrap { display: none; margin-top: 14px; }
+        .preview-wrap.visible { display: block; }
+        .canvas-stage { margin-left: auto; margin-right: auto; }
+        .file-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .file-meta .name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .text-btn {
+            background: none;
+            border: none;
+            color: var(--accent);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 12px 4px;
+            min-height: 44px;
+            flex-shrink: 0;
+        }
+
+        /* ---- Aspect selection ---- */
+        .aspect-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .aspect-actions button {
+            flex: 1;
+            min-height: 44px;
+            background: var(--card-bg-raised);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .aspect-actions button:hover { color: var(--text-main); }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .chip { position: relative; }
+        .chip input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            cursor: pointer;
+        }
+        .chip span {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            min-height: 44px;
+            padding: 8px 14px 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            background: var(--card-bg-raised);
+            color: var(--text-muted);
+            font-size: 0.88rem;
+            line-height: 1.25;
+            transition: border-color 0.15s, color 0.15s, background 0.15s;
+        }
+        .chip span::before {
+            content: "";
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            border: 1.5px solid #4a4a55;
+            border-radius: 5px;
+            transition: inherit;
+        }
+        .chip input:checked + span {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+            color: var(--text-main);
+        }
+        .chip input:checked + span::before {
+            background: var(--accent);
+            border-color: var(--accent);
+            /* Checkmark drawn with a background image to avoid a nested element. */
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-6'/%3E%3C/svg%3E");
+            background-size: 100%;
+        }
+        .chip input:focus-visible + span {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .note-input {
+            width: 100%;
+            margin-top: 14px;
+            padding: 12px;
+            min-height: 48px;
+            background: var(--card-bg-raised);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 16px; /* 16px prevents iOS Safari zoom-on-focus */
+            resize: vertical;
+        }
+        .note-input::placeholder { color: #6b6b76; }
+        .note-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* ---- Action bar ---- */
+        .action-bar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 20;
+            padding: 12px max(16px, env(safe-area-inset-left)) calc(12px + var(--safe-bottom)) max(16px, env(safe-area-inset-right));
+            background: rgba(18, 18, 20, 0.92);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border);
+        }
+        .action-bar-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            min-height: 52px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1rem;
+            font-family: inherit;
+        }
+        .btn:disabled {
+            background: #2e2e36;
+            color: #6b6b76;
+            cursor: not-allowed;
+        }
+
+        .status-line {
+            display: none;
+            align-items: center;
+            gap: 9px;
+            margin-top: 12px;
+            color: var(--accent);
+            font-weight: 500;
+            font-size: 0.88rem;
+        }
+        .status-line.visible { display: flex; }
+        .spinner {
+            width: 15px;
+            height: 15px;
+            flex-shrink: 0;
+            border: 2px solid var(--accent-dim);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) {
+            .spinner { animation-duration: 2.5s; }
+        }
+
+        /* ---- Critique output ---- */
+        .critique-content { font-size: 0.95rem; }
+        .critique-content > *:first-child { margin-top: 0; }
+        .critique-content h3 {
+            color: var(--accent);
+            font-size: 1rem;
+            margin: 26px 0 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border);
+        }
+        .critique-content h4 {
+            color: var(--text-main);
+            margin: 20px 0 8px;
+            font-size: 0.95rem;
+        }
+        .critique-content code {
+            background: var(--card-bg-raised);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-size: 0.85em;
+        }
+        .critique-content p { margin: 0 0 12px; color: #e4e4e7; }
+        .critique-content ul, .critique-content ol { padding-left: 22px; margin: 0 0 12px; }
+        .critique-content li { margin-bottom: 8px; color: #e4e4e7; }
+        .critique-content strong { color: var(--text-main); }
+        .critique-content hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+        .placeholder-text { color: var(--text-muted); font-style: italic; }
+        .sr-only {
+            position: absolute;
+            width: 1px; height: 1px;
+            margin: -1px; padding: 0;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* ---- Critique toolbar: export + section nav ---- */
+        .crit-toolbar {
+            margin: -4px 0 16px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border);
+        }
+        .crit-toolbar[hidden] { display: none; }
+
+        .export-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .tool-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 44px;
+            padding: 8px 14px;
+            background: var(--card-bg-raised);
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .tool-btn:hover { color: var(--text-main); border-color: #45454f; }
+        .tool-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .tool-btn.confirmed { color: var(--accent); border-color: var(--accent); }
+        .tool-btn[hidden] { display: none; }
+
+        /* Horizontally scrollable on narrow screens rather than wrapping to
+           four rows of chips above the content the user came to read. */
+        .section-nav {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x proximity;
+        }
+        .section-nav::-webkit-scrollbar { display: none; }
+        .section-nav:empty { display: none; }
+        /* Only masked when it actually overflows, so a short nav is not clipped. */
+        .section-nav.scrollable {
+            mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+            -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+        }
+        .section-nav button {
+            flex: 0 0 auto;
+            scroll-snap-align: start;
+            min-height: 34px;
+            padding: 6px 12px;
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 17px;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            cursor: pointer;
+        }
+        .section-nav button:hover { color: var(--text-main); }
+        .section-nav button.current {
+            color: var(--accent);
+            border-color: var(--accent);
+            background: var(--accent-dim);
+        }
+
+        /* ---- Collapsible sections ---- */
+        .crit-section {
+            border-bottom: 1px solid var(--border);
+            scroll-margin-top: 12px;
+        }
+        .crit-section:last-child { border-bottom: none; }
+        .crit-section > summary {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 48px;
+            padding: 6px 0;
+            cursor: pointer;
+            list-style: none;
+        }
+        .crit-section > summary::-webkit-details-marker { display: none; }
+        .crit-section > summary:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+        .crit-section > summary h3 {
+            flex: 1;
+            margin: 0;
+            padding: 0;
+            border: none;
+            font-size: 1rem;
+            color: var(--accent);
+        }
+        .chev {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            color: var(--text-muted);
+            transition: transform 0.18s ease;
+        }
+        .crit-section[open] > summary .chev { transform: rotate(90deg); }
+        @media (prefers-reduced-motion: reduce) {
+            .chev { transition: none; }
+        }
+        .sec-body { padding: 2px 0 14px; }
+        .sec-body > *:first-child { margin-top: 0; }
+        .sec-body > *:last-child { margin-bottom: 0; }
+
+        /* ---- Back to top ---- */
+        .to-top {
+            position: fixed;
+            right: max(16px, env(safe-area-inset-right));
+            bottom: calc(84px + var(--safe-bottom));
+            z-index: 25;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: rgba(33, 33, 39, 0.95);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            color: var(--text-main);
+            font-size: 1.1rem;
+            line-height: 1;
+            cursor: pointer;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(8px);
+            transition: opacity 0.18s, transform 0.18s, visibility 0.18s;
+        }
+        .to-top.visible { opacity: 1; visibility: visible; transform: none; }
+        @media (prefers-reduced-motion: reduce) {
+            .to-top { transition: none; }
+        }
+
+        /* ---- Toast ---- */
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: calc(92px + var(--safe-bottom));
+            z-index: 40;
+            transform: translate(-50%, 10px);
+            max-width: calc(100vw - 32px);
+            padding: 11px 18px;
+            border-radius: 22px;
+            background: #2b2b33;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            font-size: 0.87rem;
+            text-align: center;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+        }
+        .toast.visible { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+        .error-text { color: var(--accent); }
+        .caret {
+            display: inline-block;
+            width: 8px;
+            height: 1em;
+            background: var(--accent);
+            vertical-align: text-bottom;
+            animation: blink 1s steps(2) infinite;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* ---- Desktop ---- */
+        @media (min-width: 900px) {
+            body { padding: 40px 24px 40px; }
+            .container {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+                gap: 20px;
+                align-items: start;
+            }
+            .masthead { grid-column: 1 / -1; }
+            .critique-section {
+                grid-column: 2;
+                grid-row: 2 / span 3;
+                position: sticky;
+                top: 40px;
+                max-height: calc(100vh - 80px);
+                overflow-y: auto;
+            }
+            .action-bar {
+                position: static;
+                padding: 0;
+                background: none;
+                backdrop-filter: none;
+                -webkit-backdrop-filter: none;
+                border: none;
+            }
+            /* The action bar is no longer fixed on desktop, so the floating
+               controls sit at the normal viewport edge. */
+            .to-top { bottom: 28px; right: 28px; }
+            .toast { bottom: 28px; }
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+            .upload-section:not(.has-file) .capture-btn { display: block; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header class="masthead">
+        <h1>Design Crit-Bot</h1>
+        <p>Structural critique from an objective design director.</p>
+    </header>
+
+    <!-- Upload -->
+    <section class="panel upload-section">
+        <h2>Your design</h2>
+        <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Choose a design image">
+            <p style="margin:0"><strong>Tap to choose an image</strong></p>
+            <span class="hint">or drag &amp; drop — PNG, JPEG, WebP, GIF</span>
+            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+        </div>
+        <button type="button" class="capture-btn" id="captureBtn">📷 Take a photo</button>
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" hidden>
+
+        <div class="preview-wrap" id="previewWrap">
+            <div class="canvas-stage" id="canvasStage">
+                <canvas id="editorCanvas" aria-label="Crop and straighten your design"></canvas>
+                <div class="crop-box" id="cropBox">
+                    <span class="handle nw" data-corner="nw"></span>
+                    <span class="handle ne" data-corner="ne"></span>
+                    <span class="handle sw" data-corner="sw"></span>
+                    <span class="handle se" data-corner="se"></span>
+                </div>
+            </div>
+
+            <div class="editor-controls">
+                <button type="button" class="icon-btn" id="rotLeftBtn" title="Rotate 90° left" aria-label="Rotate 90 degrees left">⟲</button>
+                <button type="button" class="icon-btn" id="rotRightBtn" title="Rotate 90° right" aria-label="Rotate 90 degrees right">⟳</button>
+                <span class="spacer"></span>
+                <button type="button" class="icon-btn" id="resetEditBtn" title="Reset crop and rotation">Reset</button>
+            </div>
+            <div class="editor-controls straighten-row">
+                <label class="straighten">
+                    Straighten
+                    <input type="range" id="fineAngle" min="-15" max="15" step="0.25" value="0"
+                           aria-label="Straighten by fine angle in degrees">
+                    <output id="fineVal">0°</output>
+                </label>
+            </div>
+
+            <p class="crop-readout" id="cropReadout"></p>
+
+            <div class="file-meta">
+                <span class="name" id="fileName"></span>
+                <button type="button" class="text-btn" id="clearBtn">Replace</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Aspect selection -->
+    <section class="panel aspects-section">
+        <h2>Aspects to analyze <span class="count" id="aspectCount"></span></h2>
+        <div class="aspect-actions">
+            <button type="button" id="selectAllBtn">Select all</button>
+            <button type="button" id="clearAspectsBtn">Clear</button>
+        </div>
+        <div class="chips" id="aspectChips" role="group" aria-label="Design aspects to analyze"></div>
+        <textarea class="note-input" id="noteInput" rows="2" maxlength="500"
+                  placeholder="Optional: what is this for? (e.g. lobby poster, viewed from 10 feet)"></textarea>
+    </section>
+
+    <!-- Action -->
+    <div class="action-bar">
+        <div class="action-bar-inner">
+            <button class="btn" id="submitBtn" disabled>Analyze layout</button>
+            <div class="status-line" id="statusLine">
+                <span class="spinner" aria-hidden="true"></span>
+                <span id="statusText">Working…</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <section class="panel critique-section" id="critiqueSection">
+        <h2>Critique</h2>
+
+        <div class="crit-toolbar" id="critToolbar" hidden>
+            <div class="export-row">
+                <button type="button" class="tool-btn" id="copyBtn">Copy</button>
+                <button type="button" class="tool-btn" id="shareBtn" hidden>Share</button>
+                <button type="button" class="tool-btn" id="emailBtn">Email</button>
+                <button type="button" class="tool-btn" id="downloadBtn">Download</button>
+                <button type="button" class="tool-btn" id="toggleAllBtn">Collapse all</button>
+            </div>
+            <nav class="section-nav" id="sectionNav" aria-label="Jump to section"></nav>
+        </div>
+
+        <div class="receipt" id="receipt" hidden></div>
+
+        <div id="critiqueOutput" class="critique-content" aria-busy="false">
+            <p class="placeholder-text">Choose an image, pick the aspects you care about, and run the analysis.</p>
+        </div>
+    </section>
+</div>
+
+    <section class="panel" id="usagePanel">
+        <h2>Usage log</h2>
+        <p class="log-summary" id="logSummary">Loading…</p>
+        <div class="export-row">
+            <button type="button" class="tool-btn" id="exportZipBtn">Download all (.zip)</button>
+            <button type="button" class="tool-btn" id="exportCsvBtn">Data only (.csv)</button>
+        </div>
+    </section>
+
+<button type="button" class="to-top" id="toTopBtn" aria-label="Back to top" title="Back to top">↑</button>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<p class="sr-only" id="srStatus" role="status" aria-live="polite"></p>
+
+<script>
+    const uploadSection = document.querySelector('.upload-section');
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const cameraInput = document.getElementById('cameraInput');
+    const captureBtn = document.getElementById('captureBtn');
+    const previewWrap = document.getElementById('previewWrap');
+    const fileName = document.getElementById('fileName');
+    const clearBtn = document.getElementById('clearBtn');
+    const submitBtn = document.getElementById('submitBtn');
+    const statusLine = document.getElementById('statusLine');
+    const statusText = document.getElementById('statusText');
+    const critiqueOutput = document.getElementById('critiqueOutput');
+    const aspectChips = document.getElementById('aspectChips');
+    const aspectCount = document.getElementById('aspectCount');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const clearAspectsBtn = document.getElementById('clearAspectsBtn');
+    const noteInput = document.getElementById('noteInput');
+    const critiqueSection = document.getElementById('critiqueSection');
+    const critToolbar = document.getElementById('critToolbar');
+    const sectionNav = document.getElementById('sectionNav');
+    const copyBtn = document.getElementById('copyBtn');
+    const shareBtn = document.getElementById('shareBtn');
+    const emailBtn = document.getElementById('emailBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const toggleAllBtn = document.getElementById('toggleAllBtn');
+    const toTopBtn = document.getElementById('toTopBtn');
+    const toast = document.getElementById('toast');
+    const srStatus = document.getElementById('srStatus');
+    const canvasStage = document.getElementById('canvasStage');
+    const editorCanvas = document.getElementById('editorCanvas');
+    const cropBox = document.getElementById('cropBox');
+    const rotLeftBtn = document.getElementById('rotLeftBtn');
+    const rotRightBtn = document.getElementById('rotRightBtn');
+    const fineAngle = document.getElementById('fineAngle');
+    const fineVal = document.getElementById('fineVal');
+    const resetEditBtn = document.getElementById('resetEditBtn');
+    const cropReadout = document.getElementById('cropReadout');
+    const receiptEl = document.getElementById('receipt');
+    const logSummary = document.getElementById('logSummary');
+    const exportZipBtn = document.getElementById('exportZipBtn');
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+
+    // Image tokens are billed on pixel dimensions, not file size: measured on
+    // claude-opus-5, a 1176x1568 image costs 2355 input tokens while anything
+    // at or above ~1800x2400 clamps to the same 4743 ceiling. So 1568px on the
+    // long edge is the point where the bill halves, and the decision to resize
+    // has to be driven by dimensions — a flat-colour 3000x4000 screenshot can
+    // compress to a few hundred KB and would sail past any byte threshold.
+    const MAX_EDGE = 1568;
+    const DOWNSCALE_ABOVE_BYTES = 1.5 * 1024 * 1024;
+
+    let selectedFile = null;
+
+    // Set at the start of each run; the export helpers read from it.
+    let lastRun = null;
+    // Section ids the user has collapsed. Held outside the DOM because the
+    // output is re-rendered from scratch on every streamed frame.
+    const collapsed = new Set();
+
+    /* ---------------- Aspect chips ---------------- */
+
+    async function loadAspects() {
+        try {
+            const res = await fetch('/api/aspects');
+            if (!res.ok) throw new Error('Could not load aspect list.');
+            const { aspects } = await res.json();
+            renderAspects(aspects);
+        } catch (err) {
+            aspectChips.innerHTML =
+                '<p class="error-text" style="margin:0">Could not load the aspect list. The full set will be used.</p>';
+            updateCount();
+        }
+    }
+
+    function renderAspects(aspects) {
+        aspectChips.innerHTML = '';
+        for (const aspect of aspects) {
+            const label = document.createElement('label');
+            label.className = 'chip';
+            label.innerHTML =
+                '<input type="checkbox" value="' + aspect.id + '" checked>' +
+                '<span></span>';
+            label.querySelector('span').textContent = aspect.label;
+            aspectChips.appendChild(label);
+        }
+        aspectChips.addEventListener('change', updateCount);
+        updateCount();
+    }
+
+    function checkedAspects() {
+        return [...aspectChips.querySelectorAll('input:checked')].map((i) => i.value);
+    }
+
+    function updateCount() {
+        const boxes = aspectChips.querySelectorAll('input');
+        const selected = checkedAspects().length;
+
+        if (boxes.length === 0) {
+            aspectCount.textContent = '';
+        } else if (selected === 0) {
+            aspectCount.textContent = 'none — all will be used';
+        } else {
+            aspectCount.textContent = selected + ' of ' + boxes.length;
+        }
+        updateSubmitState();
+    }
+
+    function setAllAspects(checked) {
+        aspectChips.querySelectorAll('input').forEach((i) => { i.checked = checked; });
+        updateCount();
+    }
+
+    selectAllBtn.addEventListener('click', () => setAllAspects(true));
+    clearAspectsBtn.addEventListener('click', () => setAllAspects(false));
+
+    /* ---------------- File handling ---------------- */
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            fileInput.click();
+        }
+    });
+    captureBtn.addEventListener('click', () => cameraInput.click());
+
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+    cameraInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+
+    clearBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    /* ---------------- Image editor ---------------- */
+
+    // Transform state. `crop` is normalized (0-1) against the *rotated*
+    // image, so it survives changes in display size but not in rotation.
+    const edit = { bitmap: null, work: null, rot90: 0, fine: 0, crop: null };
+
+    async function handleFiles(files) {
+        if (!files || files.length === 0) return;
+        const file = files[0];
+
+        if (!file.type.startsWith('image/')) {
+            showError('That file is not an image.');
+            return;
+        }
+
+        selectedFile = file;
+        fileName.textContent = file.name + ' · ' + formatBytes(file.size);
+
+        try {
+            if (edit.bitmap) edit.bitmap.close();
+            edit.bitmap = await createImageBitmap(file);
+        } catch (err) {
+            console.error('Could not decode image:', err);
+            showError('That image could not be decoded. Try a different file.');
+            selectedFile = null;
+            updateSubmitState();
+            return;
+        }
+
+        resetEdit();
+        previewWrap.classList.add('visible');
+        uploadSection.classList.add('has-file');
+        updateSubmitState();
+    }
+
+    function resetEdit() {
+        edit.rot90 = 0;
+        edit.fine = 0;
+        fineAngle.value = '0';
+        rebuildWork({ resetCrop: true });
+    }
+
+    /**
+     * Renders the source rotated by (rot90 * 90 + fine) into an offscreen
+     * canvas. Rebuilt only when rotation changes — crop dragging just moves a
+     * rectangle over the result.
+     */
+    function rebuildWork({ resetCrop }) {
+        if (!edit.bitmap) return;
+
+        const angle = ((edit.rot90 * 90) + edit.fine) * Math.PI / 180;
+        const sin = Math.abs(Math.sin(angle));
+        const cos = Math.abs(Math.cos(angle));
+        const sw = edit.bitmap.width;
+        const sh = edit.bitmap.height;
+
+        const cw = Math.max(1, Math.round(sw * cos + sh * sin));
+        const ch = Math.max(1, Math.round(sw * sin + sh * cos));
+
+        const c = document.createElement('canvas');
+        c.width = cw;
+        c.height = ch;
+        const ctx = c.getContext('2d');
+        // Off-image corners from a fine rotation read as white paper rather
+        // than a black void, which would skew a contrast judgement.
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cw, ch);
+        ctx.translate(cw / 2, ch / 2);
+        ctx.rotate(angle);
+        ctx.drawImage(edit.bitmap, -sw / 2, -sh / 2);
+        edit.work = c;
+
+        if (resetCrop || !edit.crop) {
+            edit.crop = defaultCrop(sw, sh, angle, cw, ch);
+        }
+        drawEditor();
+    }
+
+    /**
+     * Largest axis-aligned rectangle that fits inside the rotated image, so a
+     * straighten never leaves white wedges in the analyzed area.
+     */
+    function defaultCrop(w, h, angle, cw, ch) {
+        const sin = Math.abs(Math.sin(angle));
+        const cos = Math.abs(Math.cos(angle));
+        if (sin < 1e-9 || cos < 1e-9) return { x: 0, y: 0, w: 1, h: 1 };
+
+        const longer = Math.max(w, h);
+        const shorter = Math.min(w, h);
+        let rw, rh;
+
+        if (shorter <= 2 * sin * cos * longer || Math.abs(sin - cos) < 1e-9) {
+            const half = 0.5 * shorter;
+            if (w >= h) { rw = half / sin; rh = half / cos; }
+            else { rw = half / cos; rh = half / sin; }
+        } else {
+            const cos2a = cos * cos - sin * sin;
+            rw = (w * cos - h * sin) / cos2a;
+            rh = (h * cos - w * sin) / cos2a;
+        }
+
+        const nw = Math.min(1, Math.abs(rw) / cw);
+        const nh = Math.min(1, Math.abs(rh) / ch);
+        return { x: (1 - nw) / 2, y: (1 - nh) / 2, w: nw, h: nh };
+    }
+
+    /** Paints the working image into the visible canvas and positions the crop box. */
+    function drawEditor() {
+        if (!edit.work) return;
+
+        const panel = canvasStage.closest('.panel');
+        const maxW = (panel ? panel.clientWidth - 32 : 0) || canvasStage.parentElement.clientWidth || 320;
+        const maxH = Math.round(window.innerHeight * 0.45);
+        const scale = Math.min(1, maxW / edit.work.width, maxH / edit.work.height);
+        const dw = Math.max(1, Math.round(edit.work.width * scale));
+        const dh = Math.max(1, Math.round(edit.work.height * scale));
+
+        // Render at device resolution so the preview is not soft on mobile.
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        editorCanvas.width = Math.round(dw * dpr);
+        editorCanvas.height = Math.round(dh * dpr);
+        editorCanvas.style.width = dw + 'px';
+        editorCanvas.style.height = dh + 'px';
+
+        const ctx = editorCanvas.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.clearRect(0, 0, editorCanvas.width, editorCanvas.height);
+        ctx.drawImage(edit.work, 0, 0, editorCanvas.width, editorCanvas.height);
+
+        cropBox.style.left = (edit.crop.x * 100) + '%';
+        cropBox.style.top = (edit.crop.y * 100) + '%';
+        cropBox.style.width = (edit.crop.w * 100) + '%';
+        cropBox.style.height = (edit.crop.h * 100) + '%';
+
+        updateCropReadout();
+    }
+
+    /** Final pixel dimensions after crop and the 1568px cap. */
+    function outputSize() {
+        if (!edit.work) return null;
+        const cw = Math.max(1, Math.round(edit.crop.w * edit.work.width));
+        const ch = Math.max(1, Math.round(edit.crop.h * edit.work.height));
+        const scale = Math.min(1, MAX_EDGE / Math.max(cw, ch));
+        return { w: Math.round(cw * scale), h: Math.round(ch * scale), scaled: scale < 1 };
+    }
+
+    function updateCropReadout() {
+        const out = outputSize();
+        if (!out) { cropReadout.textContent = ''; return; }
+
+        const cropped = edit.crop.w < 0.999 || edit.crop.h < 0.999;
+        const bits = [`Analyzing ${out.w}×${out.h}px`];
+        if (cropped) bits.push('cropped');
+        if (edit.rot90) bits.push((edit.rot90 * 90) + '° rotated');
+        if (edit.fine) bits.push(edit.fine.toFixed(2).replace(/\.?0+$/, '') + '° straightened');
+        if (out.scaled) bits.push('resized to the 1568px cost cap');
+
+        cropReadout.textContent = bits.join(' · ');
+    }
+
+    rotLeftBtn.addEventListener('click', () => {
+        edit.rot90 = (edit.rot90 + 3) % 4;
+        rebuildWork({ resetCrop: true });
+    });
+    rotRightBtn.addEventListener('click', () => {
+        edit.rot90 = (edit.rot90 + 1) % 4;
+        rebuildWork({ resetCrop: true });
+    });
+    fineAngle.addEventListener('input', () => {
+        edit.fine = parseFloat(fineAngle.value);
+        fineVal.textContent = (edit.fine > 0 ? '+' : '') + edit.fine + '°';
+        rebuildWork({ resetCrop: true });
+    });
+    resetEditBtn.addEventListener('click', () => {
+        fineVal.textContent = '0°';
+        resetEdit();
+    });
+    window.addEventListener('resize', () => { if (edit.work) drawEditor(); });
+
+    /* ---- Crop box dragging (pointer events cover mouse, touch and pen) ---- */
+
+    const MIN_CROP = 0.06; // never let the box collapse to nothing
+    let drag = null;
+
+    canvasStage.addEventListener('pointerdown', (e) => {
+        if (!edit.work) return;
+        const handle = e.target.closest('.handle');
+        const onBox = e.target === cropBox || handle;
+        if (!onBox) return;
+
+        e.preventDefault();
+        const rect = editorCanvas.getBoundingClientRect();
+        drag = {
+            corner: handle ? handle.dataset.corner : null,
+            startX: e.clientX,
+            startY: e.clientY,
+            rect: rect,
+            origin: { ...edit.crop }
+        };
+        canvasStage.setPointerCapture(e.pointerId);
+    });
+
+    canvasStage.addEventListener('pointermove', (e) => {
+        if (!drag) return;
+        const dx = (e.clientX - drag.startX) / drag.rect.width;
+        const dy = (e.clientY - drag.startY) / drag.rect.height;
+        const o = drag.origin;
+
+        if (!drag.corner) {
+            // Move: clamp so the box stays fully inside the image.
+            edit.crop.x = clamp(o.x + dx, 0, 1 - o.w);
+            edit.crop.y = clamp(o.y + dy, 0, 1 - o.h);
+        } else {
+            let { x, y, w, h } = o;
+            if (drag.corner.includes('w')) {
+                const nx = clamp(o.x + dx, 0, o.x + o.w - MIN_CROP);
+                w = o.x + o.w - nx; x = nx;
+            } else {
+                w = clamp(o.w + dx, MIN_CROP, 1 - o.x);
+            }
+            if (drag.corner.includes('n')) {
+                const ny = clamp(o.y + dy, 0, o.y + o.h - MIN_CROP);
+                h = o.y + o.h - ny; y = ny;
+            } else {
+                h = clamp(o.h + dy, MIN_CROP, 1 - o.y);
+            }
+            edit.crop = { x, y, w, h };
+        }
+        positionCropBox();
+    });
+
+    const endDrag = (e) => {
+        if (!drag) return;
+        drag = null;
+        try { canvasStage.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+        updateCropReadout();
+    };
+    canvasStage.addEventListener('pointerup', endDrag);
+    canvasStage.addEventListener('pointercancel', endDrag);
+
+    function positionCropBox() {
+        cropBox.style.left = (edit.crop.x * 100) + '%';
+        cropBox.style.top = (edit.crop.y * 100) + '%';
+        cropBox.style.width = (edit.crop.w * 100) + '%';
+        cropBox.style.height = (edit.crop.h * 100) + '%';
+    }
+
+    function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+    function formatBytes(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    const EXTENSIONS = { 'image/png': '.png', 'image/webp': '.webp', 'image/jpeg': '.jpg' };
+
+    /**
+     * Chooses the re-encode format. canvas.toBlob silently falls back to PNG
+     * for a type the browser cannot encode, which would mislabel the result,
+     * so WebP output is feature-detected rather than assumed.
+     */
+    function pickEncoding(sourceType) {
+        if (sourceType === 'image/png') return 'image/png';
+        if (sourceType === 'image/webp') return canEncodeWebp() ? 'image/webp' : 'image/png';
+        return 'image/jpeg';
+    }
+
+    let webpSupport = null;
+    function canEncodeWebp() {
+        if (webpSupport === null) {
+            const c = document.createElement('canvas');
+            c.width = c.height = 1;
+            webpSupport = c.toDataURL('image/webp').startsWith('data:image/webp');
+        }
+        return webpSupport;
+    }
+
+    /**
+     * Bakes rotation and crop, then caps the long edge at MAX_EDGE. Falls back
+     * to the untouched file if anything goes wrong — a rendering failure
+     * should never block the analysis.
+     */
+    async function prepareImage(file) {
+        if (!edit.work) return file;
+
+        const untouched = edit.rot90 === 0 && edit.fine === 0 &&
+            edit.crop.x === 0 && edit.crop.y === 0 && edit.crop.w === 1 && edit.crop.h === 1;
+
+        // An untouched GIF is worth passing through; canvas would flatten it.
+        if (untouched && file.type === 'image/gif') return file;
+
+        try {
+            const sx = Math.round(edit.crop.x * edit.work.width);
+            const sy = Math.round(edit.crop.y * edit.work.height);
+            const sw = Math.max(1, Math.round(edit.crop.w * edit.work.width));
+            const sh = Math.max(1, Math.round(edit.crop.h * edit.work.height));
+            const out = outputSize();
+
+            // Nothing to do and already within the cost cap: send the original.
+            if (untouched && !out.scaled && file.size <= DOWNSCALE_ABOVE_BYTES) return file;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = out.w;
+            canvas.height = out.h;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(edit.work, sx, sy, sw, sh, 0, 0, out.w, out.h);
+
+            const outType = pickEncoding(file.type);
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, outType, 0.92));
+            if (!blob) return file;
+
+            const name = file.name.replace(/\.[^.]+$/, '') + EXTENSIONS[outType];
+            return new File([blob], name, { type: outType });
+        } catch (err) {
+            console.warn('Edit bake failed, sending original:', err);
+            return file;
+        }
+    }
+
+    function updateSubmitState() {
+        submitBtn.disabled = !selectedFile || submitBtn.dataset.busy === 'true';
+    }
+
+    /* ---------------- Markdown rendering ---------------- */
+
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    function renderInline(text) {
+        return escapeHtml(text)
+            .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
+            .replace(/`([^`]+)`/g, '<code>$1</code>');
+    }
+
+    /**
+     * Minimal Markdown -> HTML for the subset the critique format uses:
+     * headings, bold/italic, ordered and unordered lists, rules, paragraphs.
+     */
+    function renderMarkdown(md) {
+        const out = [];
+        let listTag = null;
+        let paragraph = [];
+
+        const flushParagraph = () => {
+            if (paragraph.length) {
+                out.push('<p>' + renderInline(paragraph.join(' ')) + '</p>');
+                paragraph = [];
+            }
+        };
+        const closeList = () => {
+            if (listTag) {
+                out.push('</' + listTag + '>');
+                listTag = null;
+            }
+        };
+        const openList = (tag) => {
+            if (listTag !== tag) {
+                closeList();
+                out.push('<' + tag + '>');
+                listTag = tag;
+            }
+        };
+
+        for (const rawLine of md.split('\n')) {
+            const line = rawLine.trim();
+
+            if (line === '') {
+                flushParagraph();
+                closeList();
+                continue;
+            }
+
+            const heading = line.match(/^(#{1,6})\s+(.*)$/);
+            if (heading) {
+                flushParagraph();
+                closeList();
+                const level = Math.min(heading[1].length + 1, 6); // demote: page owns h1
+                out.push('<h' + level + '>' + renderInline(heading[2]) + '</h' + level + '>');
+                continue;
+            }
+
+            if (/^([-*_])\1{2,}$/.test(line)) {
+                flushParagraph();
+                closeList();
+                out.push('<hr>');
+                continue;
+            }
+
+            const ordered = line.match(/^\d+[.)]\s+(.*)$/);
+            if (ordered) {
+                flushParagraph();
+                openList('ol');
+                out.push('<li>' + renderInline(ordered[1]) + '</li>');
+                continue;
+            }
+
+            const unordered = line.match(/^[-*+]\s+(.*)$/);
+            if (unordered) {
+                flushParagraph();
+                openList('ul');
+                out.push('<li>' + renderInline(unordered[1]) + '</li>');
+                continue;
+            }
+
+            if (listTag) {
+                // Continuation of the previous list item.
+                const last = out.length - 1;
+                out[last] = out[last].replace(/<\/li>$/, ' ' + renderInline(line) + '</li>');
+                continue;
+            }
+
+            paragraph.push(line);
+        }
+
+        flushParagraph();
+        closeList();
+        return out.join('');
+    }
+
+    /* ---------------- Sections & navigation ---------------- */
+
+    const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+        'stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="M9 6l6 6-6 6"/></svg>';
+
+    /**
+     * Wraps each `<h3>`-led run of the rendered critique in a <details>, so
+     * sections collapse with native keyboard and screen-reader behaviour.
+     * Returns { html, titles }.
+     */
+    function buildSections(html) {
+        // renderMarkdown only ever emits <h3> for a top-level "## " heading,
+        // so splitting on it cleanly separates the critique's five sections.
+        const chunks = html.split(/(?=<h3>)/).filter((c) => c !== '');
+        const titles = [];
+        let out = '';
+        let index = 0;
+
+        for (const chunk of chunks) {
+            const match = chunk.match(/^<h3>([\s\S]*?)<\/h3>/);
+            if (!match) {
+                out += chunk; // preamble before the first heading
+                continue;
+            }
+            const id = 'sec-' + index;
+            const body = chunk.slice(match[0].length);
+            titles.push({ id: id, title: stripTags(match[1]) });
+            out += '<details class="crit-section" id="' + id + '"' +
+                   (collapsed.has(id) ? '' : ' open') + '>' +
+                   '<summary><h3>' + match[1] + '</h3>' + CHEVRON + '</summary>' +
+                   '<div class="sec-body">' + body + '</div>' +
+                   '</details>';
+            index++;
+        }
+        return { html: out, titles: titles };
+    }
+
+    function stripTags(html) {
+        const el = document.createElement('div');
+        el.innerHTML = html;
+        return el.textContent.trim();
+    }
+
+    function renderNav(titles) {
+        sectionNav.innerHTML = '';
+        if (titles.length < 2) return; // nothing to navigate between
+        for (const t of titles) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.dataset.target = t.id;
+            btn.textContent = t.title;
+            sectionNav.appendChild(btn);
+        }
+        updateNavAffordance();
+    }
+
+    function updateNavAffordance() {
+        sectionNav.classList.toggle(
+            'scrollable',
+            sectionNav.scrollWidth > sectionNav.clientWidth + 4
+        );
+    }
+    window.addEventListener('resize', updateNavAffordance);
+
+    sectionNav.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const target = document.getElementById(btn.dataset.target);
+        if (!target) return;
+        // Jumping to a collapsed section should reveal it.
+        if (!target.open) {
+            target.open = true;
+            collapsed.delete(target.id);
+            syncToggleAllLabel();
+        }
+        target.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+    });
+
+    function prefersReducedMotion() {
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    }
+
+    // 'toggle' does not bubble, so delegation has to listen in the capture phase.
+    critiqueOutput.addEventListener('toggle', (e) => {
+        const el = e.target;
+        if (!el.classList || !el.classList.contains('crit-section')) return;
+        if (el.open) collapsed.delete(el.id);
+        else collapsed.add(el.id);
+        syncToggleAllLabel();
+    }, true);
+
+    function allSections() {
+        return [...critiqueOutput.querySelectorAll('.crit-section')];
+    }
+
+    function syncToggleAllLabel() {
+        const sections = allSections();
+        const anyOpen = sections.some((d) => d.open);
+        toggleAllBtn.textContent = anyOpen ? 'Collapse all' : 'Expand all';
+    }
+
+    toggleAllBtn.addEventListener('click', () => {
+        const sections = allSections();
+        const anyOpen = sections.some((d) => d.open);
+        for (const d of sections) {
+            d.open = !anyOpen;
+            if (anyOpen) collapsed.add(d.id);
+            else collapsed.delete(d.id);
+        }
+        syncToggleAllLabel();
+    });
+
+    /* ---- Scroll handling: the page scrolls on mobile, the critique panel
+       scrolls internally on desktop, so resolve which one is live. ---- */
+
+    function scrollHost() {
+        const canScrollPanel = critiqueSection.scrollHeight > critiqueSection.clientHeight + 4;
+        return canScrollPanel ? critiqueSection : window;
+    }
+
+    function scrollTop(host) {
+        return host === window ? window.scrollY : host.scrollTop;
+    }
+
+    function onScroll() {
+        const host = scrollHost();
+        toTopBtn.classList.toggle('visible', scrollTop(host) > 400);
+        markCurrentSection();
+    }
+
+    function markCurrentSection() {
+        const buttons = [...sectionNav.querySelectorAll('button')];
+        if (buttons.length === 0) return;
+
+        // The section whose top is closest to just above the fold wins.
+        let currentId = null;
+        for (const d of allSections()) {
+            if (d.getBoundingClientRect().top <= 120) currentId = d.id;
+        }
+        for (const b of buttons) {
+            b.classList.toggle('current', b.dataset.target === currentId);
+        }
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    critiqueSection.addEventListener('scroll', onScroll, { passive: true });
+
+    toTopBtn.addEventListener('click', () => {
+        const host = scrollHost();
+        const behavior = prefersReducedMotion() ? 'auto' : 'smooth';
+        if (host === window) window.scrollTo({ top: 0, behavior: behavior });
+        else host.scrollTo({ top: 0, behavior: behavior });
+    });
+
+    /* ---------------- Receipt ---------------- */
+
+    let lastReceipt = null;
+
+    const money = (n) => '$' + n.toFixed(4);
+    const tokens = (n) => n.toLocaleString();
+
+    function renderReceipt(r) {
+        lastReceipt = r;
+        const p = r.pricing;
+        const lineCost = (tok, rate) => (tok * rate) / 1e6;
+
+        const rows = [
+            ['Input tokens', tokens(r.inputTokens), money(lineCost(r.inputTokens, p.input)), false],
+            ['&nbsp;&nbsp;of which image (est.)', r.imageTokensEst ? '~' + tokens(r.imageTokensEst) : '—', '', true],
+            ['Output tokens', tokens(r.outputTokens), money(lineCost(r.outputTokens, p.output)), false]
+        ];
+        if (r.cacheReadTokens) rows.push(['Cache read', tokens(r.cacheReadTokens), money(lineCost(r.cacheReadTokens, p.cacheRead)), false]);
+        if (r.cacheWriteTokens) rows.push(['Cache write', tokens(r.cacheWriteTokens), money(lineCost(r.cacheWriteTokens, p.cacheWrite)), false]);
+
+        const body = rows.map(function (row) {
+            return '<tr' + (row[3] ? ' class="sub"' : '') + '><td>' + row[0] + '</td><td>' +
+                row[1] + (row[2] ? ' &nbsp;·&nbsp; ' + row[2] : '') + '</td></tr>';
+        }).join('');
+
+        const dims = r.width ? r.width + '×' + r.height : 'unknown';
+        receiptEl.innerHTML =
+            '<h4><span>Receipt</span><span>run ' + escapeHtml(r.runId) + '</span></h4>' +
+            '<table><tbody>' +
+            '<tr><td>Image</td><td>' + dims + ' · ' + escapeHtml(r.mediaType.replace('image/', '')) +
+                ' · ' + formatBytes(r.bytes) + '</td></tr>' +
+            '<tr><td>Model</td><td>' + escapeHtml(r.model) + ' · effort ' + escapeHtml(r.effort) + '</td></tr>' +
+            body +
+            '<tr><td>Elapsed</td><td>' + r.seconds.toFixed(1) + 's</td></tr>' +
+            '<tr class="total"><td>Total</td><td>' + money(r.costUsd) + '</td></tr>' +
+            '</tbody></table>';
+        receiptEl.hidden = false;
+        refreshUsageSummary();
+    }
+
+    /** The receipt as markdown, appended to exports. */
+    function receiptMarkdown() {
+        if (!lastReceipt) return '';
+        const r = lastReceipt;
+        return [
+            '', '---', '',
+            '## Receipt',
+            '',
+            '| | |',
+            '|---|---|',
+            '| Run | ' + r.runId + ' |',
+            '| Image | ' + (r.width ? r.width + '×' + r.height : 'unknown') + ' · ' +
+                r.mediaType.replace('image/', '') + ' · ' + formatBytes(r.bytes) + ' |',
+            '| Model | ' + r.model + ' (effort ' + r.effort + ') |',
+            '| Input tokens | ' + tokens(r.inputTokens) +
+                (r.imageTokensEst ? ' (~' + tokens(r.imageTokensEst) + ' image)' : '') + ' |',
+            '| Output tokens | ' + tokens(r.outputTokens) + ' |',
+            '| Elapsed | ' + r.seconds.toFixed(1) + 's |',
+            '| **API cost** | **' + money(r.costUsd) + '** |',
+            ''
+        ].join('\n');
+    }
+
+    /* ---------------- Usage log ---------------- */
+
+    async function refreshUsageSummary() {
+        try {
+            const res = await fetch('/api/runs');
+            if (!res.ok) throw new Error('status ' + res.status);
+            const data = await res.json();
+
+            if (data.count === 0) {
+                logSummary.textContent = 'No analyses logged yet.';
+                exportZipBtn.disabled = true;
+                exportCsvBtn.disabled = true;
+                return;
+            }
+            exportZipBtn.disabled = false;
+            exportCsvBtn.disabled = false;
+            logSummary.innerHTML =
+                '<strong>' + data.count + '</strong> ' + (data.count === 1 ? 'analysis' : 'analyses') +
+                ' logged · <strong>' + money(data.totalCostUsd) + '</strong> total API spend' +
+                ' · avg <strong>' + money(data.totalCostUsd / data.count) + '</strong>';
+        } catch (err) {
+            logSummary.textContent = 'Usage log unavailable.';
+        }
+    }
+
+    function downloadUrl(url) {
+        const a = document.createElement('a');
+        a.href = url;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
+    exportZipBtn.addEventListener('click', () => {
+        downloadUrl('/api/export.zip');
+        showToast('Building archive — images and critiques included.');
+    });
+    exportCsvBtn.addEventListener('click', () => downloadUrl('/api/export.csv'));
+
+    /* ---------------- Export ---------------- */
+
+    function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add('visible');
+        clearTimeout(showToast.timer);
+        showToast.timer = setTimeout(() => toast.classList.remove('visible'), 2600);
+    }
+
+    function confirmButton(btn, label) {
+        const original = btn.textContent;
+        btn.textContent = label;
+        btn.classList.add('confirmed');
+        clearTimeout(btn.dataset.timer);
+        btn.dataset.timer = setTimeout(() => {
+            btn.textContent = original;
+            btn.classList.remove('confirmed');
+        }, 1800);
+    }
+
+    /** The critique plus the context needed to make sense of it later. */
+    function exportText() {
+        if (!lastRun) return '';
+        const header = [
+            '# Design critique — ' + lastRun.fileName,
+            '',
+            'Date: ' + lastRun.date,
+            'Aspects analyzed: ' + lastRun.aspects.join(', '),
+        ];
+        if (lastRun.note) header.push('Context: ' + lastRun.note);
+        // (receipt is appended after the critique body)
+        header.push('', '---', '', '');
+        return header.join('\n') + lastRun.markdown + receiptMarkdown();
+    }
+
+    function exportFileName() {
+        const base = (lastRun?.fileName || 'design').replace(/\.[^.]+$/, '').replace(/[^a-z0-9._-]+/gi, '-');
+        return 'critique-' + base + '-' + (lastRun?.dateSlug || 'export') + '.md';
+    }
+
+    async function copyText(text) {
+        // navigator.clipboard needs a secure context; serving this over plain
+        // http on a LAN address (the usual way to test on a phone) is not one.
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:0;left:-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, text.length);
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+    }
+
+    copyBtn.addEventListener('click', async () => {
+        try {
+            const ok = await copyText(exportText());
+            if (!ok) throw new Error('copy rejected');
+            confirmButton(copyBtn, 'Copied');
+        } catch (err) {
+            console.error('Copy failed:', err);
+            showToast('Could not copy — select the text manually.');
+        }
+    });
+
+    // The native share sheet already offers Mail, so the two would be
+    // redundant — and a fifth button wraps the toolbar onto a second row.
+    if (navigator.share) {
+        shareBtn.hidden = false;
+        emailBtn.hidden = true;
+        shareBtn.addEventListener('click', async () => {
+            try {
+                await navigator.share({
+                    title: 'Design critique — ' + lastRun.fileName,
+                    text: exportText()
+                });
+            } catch (err) {
+                // An aborted share sheet is a normal user action, not a failure.
+                if (err.name !== 'AbortError') {
+                    console.error('Share failed:', err);
+                    showToast('Sharing was not available.');
+                }
+            }
+        });
+    }
+
+    // mailto: URLs are length-limited and the ceiling varies by client and OS,
+    // so a full critique will not survive one. Stay well under the worst case
+    // and fall back to clipboard + an empty draft.
+    const MAILTO_BODY_LIMIT = 1500;
+
+    emailBtn.addEventListener('click', async () => {
+        const text = exportText();
+        const subject = 'Design critique — ' + lastRun.fileName;
+
+        if (text.length <= MAILTO_BODY_LIMIT) {
+            window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) +
+                '&body=' + encodeURIComponent(text);
+            return;
+        }
+
+        let copied = false;
+        try { copied = await copyText(text); } catch (err) { copied = false; }
+
+        window.location.href = 'mailto:?subject=' + encodeURIComponent(subject) +
+            '&body=' + encodeURIComponent(
+                copied
+                    ? '[The critique is on your clipboard — paste it here.]'
+                    : '[Copy the critique from the browser and paste it here.]'
+            );
+        showToast(copied
+            ? 'Critique copied — paste it into the draft.'
+            : 'Too long to prefill. Copy it first, then paste.');
+    });
+
+    downloadBtn.addEventListener('click', () => {
+        const blob = new Blob([exportText()], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = exportFileName();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        confirmButton(downloadBtn, 'Saved');
+    });
+
+    /* ---------------- Analysis ---------------- */
+
+    function setBusy(busy, message) {
+        submitBtn.dataset.busy = busy ? 'true' : 'false';
+        submitBtn.textContent = busy ? 'Analyzing…' : 'Analyze layout';
+        statusLine.classList.toggle('visible', busy);
+        critiqueOutput.setAttribute('aria-busy', busy ? 'true' : 'false');
+        if (message) statusText.textContent = message;
+        updateSubmitState();
+    }
+
+    function showError(message) {
+        critiqueOutput.innerHTML = '<p class="error-text"></p>';
+        critiqueOutput.firstChild.textContent = '⚠️ ' + message;
+    }
+
+    /** Renders markdown into collapsible sections and refreshes the chrome. */
+    function paint(markdown, streaming) {
+        const built = buildSections(renderMarkdown(markdown));
+        critiqueOutput.innerHTML = built.html + (streaming ? '<span class="caret"></span>' : '');
+        critToolbar.hidden = built.titles.length === 0;
+        renderNav(built.titles); // must run unhidden — it measures overflow
+        syncToggleAllLabel();
+        markCurrentSection();
+    }
+
+    submitBtn.addEventListener('click', async () => {
+        if (!selectedFile || submitBtn.dataset.busy === 'true') return;
+
+        setBusy(true, 'Preparing image…');
+        critiqueOutput.innerHTML = '<p class="placeholder-text">Analyzing visual properties…</p>';
+        critToolbar.hidden = true;
+        receiptEl.hidden = true;
+        lastReceipt = null;
+        collapsed.clear();
+
+        const now = new Date();
+        const selectedIds = checkedAspects();
+        const selectedLabels = selectedIds.length
+            ? [...aspectChips.querySelectorAll('input:checked')].map((i) => i.nextElementSibling.textContent)
+            : ['all'];
+        lastRun = {
+            fileName: selectedFile.name,
+            date: now.toLocaleString(),
+            // Local date, not toISOString() — that is UTC, and an evening run
+            // would stamp the filename with tomorrow's date.
+            dateSlug: [
+                now.getFullYear(),
+                String(now.getMonth() + 1).padStart(2, '0'),
+                String(now.getDate()).padStart(2, '0')
+            ].join('-'),
+            aspects: selectedLabels,
+            note: noteInput.value.trim(),
+            markdown: ''
+        };
+
+        let markdown = '';
+        let renderQueued = false;
+
+        const flushRender = () => {
+            renderQueued = false;
+            paint(markdown, true);
+        };
+
+        try {
+            const image = await prepareImage(selectedFile);
+
+            const formData = new FormData();
+            formData.append('designImage', image);
+            formData.append('aspects', JSON.stringify(selectedIds));
+            if (noteInput.value.trim()) formData.append('note', noteInput.value.trim());
+
+            setBusy(true, 'Sending to the director…');
+
+            const response = await fetch('/api/critique', { method: 'POST', body: formData });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({ error: 'Unknown server error.' }));
+                throw new Error(errData.error || 'HTTP error! status: ' + response.status);
+            }
+
+            // Server streams Server-Sent Events so the critique appears as it writes.
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const frames = buffer.split('\n\n');
+                buffer = frames.pop(); // keep the trailing partial frame
+
+                for (const frame of frames) {
+                    const eventMatch = frame.match(/^event: (.+)$/m);
+                    const dataMatch = frame.match(/^data: (.+)$/m);
+                    if (!eventMatch || !dataMatch) continue;
+
+                    const payload = JSON.parse(dataMatch[1]);
+
+                    if (eventMatch[1] === 'delta') {
+                        markdown += payload.text;
+                        if (!renderQueued) {
+                            renderQueued = true;
+                            requestAnimationFrame(flushRender);
+                        }
+                    } else if (eventMatch[1] === 'status') {
+                        statusText.textContent = payload.message;
+                    } else if (eventMatch[1] === 'done') {
+                        if (payload.receipt) renderReceipt(payload.receipt);
+                    } else if (eventMatch[1] === 'error') {
+                        throw new Error(payload.error);
+                    }
+                }
+            }
+
+            if (markdown) {
+                lastRun.markdown = markdown;
+                paint(markdown, false);
+                const n = critiqueOutput.querySelectorAll('.crit-section').length;
+                srStatus.textContent = 'Critique ready' + (n ? ' — ' + n + ' sections.' : '.');
+            } else {
+                showError('The analysis returned no content. Try again.');
+            }
+
+        } catch (error) {
+            console.error('Frontend Capture Exception:', error);
+            if (markdown) {
+                // Keep whatever arrived before the break rather than discarding it.
+                lastRun.markdown = markdown;
+                paint(markdown, false);
+                const notice = document.createElement('p');
+                notice.className = 'error-text';
+                notice.textContent = '⚠️ Stream interrupted: ' + error.message;
+                critiqueOutput.appendChild(notice);
+            } else {
+                showError('Connection stalled: ' + error.message);
+            }
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    loadAspects();
+    refreshUsageSummary();
+</script>
+
+</body>
+</html>
