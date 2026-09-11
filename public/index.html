@@ -276,6 +276,77 @@
         }
         .log-summary strong { color: var(--text-main); }
 
+        /* The headline figures. Each label names its own denominator so
+           "average" never leaves the reader to infer what it divides by. */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1px;
+            margin: 0 0 10px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .stat {
+            background: var(--card-bg-raised);
+            padding: 11px 13px;
+        }
+        .stat-label {
+            display: block;
+            font-size: 0.68rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+        /* Proportional figures deliberately: tabular-nums widens every digit to
+           a zero, which reads loose at this size. */
+        .stat-value {
+            display: block;
+            font-size: 1.25rem;
+            font-weight: 600;
+            line-height: 1.15;
+            color: var(--text-main);
+        }
+        .stat-sub {
+            display: block;
+            margin-top: 4px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        /* Spells out total / runs = average: the relationship the three figures
+           imply but never state. */
+        .stat-note {
+            max-width: 68ch;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            color: var(--text-muted);
+            margin: 0 0 12px;
+        }
+        .stat-note .eq { color: var(--text-main); white-space: nowrap; }
+        /* Three tiles side by side need more width than a phone has, so below
+           the breakpoint each becomes a label/value row instead. */
+        @media (max-width: 520px) {
+            .stat-row { grid-template-columns: 1fr; }
+            .stat {
+                display: grid;
+                grid-template-columns: 1fr auto;
+                align-items: baseline;
+                column-gap: 12px;
+                padding: 9px 13px;
+            }
+            .stat-label { margin-bottom: 0; }
+            .stat-value {
+                font-size: 1.05rem;
+                text-align: right;
+            }
+            .stat-sub {
+                grid-column: 1 / -1;
+                margin-top: 2px;
+            }
+        }
+
         .preview-wrap { display: none; margin-top: 14px; }
         .preview-wrap.visible { display: block; }
         .canvas-stage { margin-left: auto; margin-right: auto; }
@@ -810,7 +881,7 @@
 
     <section class="panel" id="usagePanel">
         <h2>Usage log</h2>
-        <p class="log-summary" id="logSummary">Loading…</p>
+        <div class="log-summary" id="logSummary">Loading…</div>
         <div class="export-row">
             <button type="button" class="tool-btn" id="exportZipBtn">Download all (.zip)</button>
             <button type="button" class="tool-btn" id="exportCsvBtn">Data only (.csv)</button>
@@ -1578,7 +1649,7 @@
             '<tr><td>Model</td><td>' + escapeHtml(r.model) + ' · effort ' + escapeHtml(r.effort) + '</td></tr>' +
             body +
             '<tr><td>Elapsed</td><td>' + r.seconds.toFixed(1) + 's</td></tr>' +
-            '<tr class="total"><td>Total</td><td>' + money(r.costUsd) + '</td></tr>' +
+            '<tr class="total"><td>Total for this run</td><td>' + money(r.costUsd) + '</td></tr>' +
             '</tbody></table>';
         receiptEl.hidden = false;
         refreshUsageSummary();
@@ -1609,6 +1680,15 @@
 
     /* ---------------- Usage log ---------------- */
 
+    /** One figure in the usage row. `label` carries the denominator. */
+    function statTile(label, value, sub) {
+        return '<div class="stat">' +
+            '<span class="stat-label">' + label + '</span>' +
+            '<span class="stat-value">' + value + '</span>' +
+            (sub ? '<span class="stat-sub">' + sub + '</span>' : '') +
+            '</div>';
+    }
+
     async function refreshUsageSummary() {
         try {
             const res = await fetch('/api/runs');
@@ -1623,10 +1703,25 @@
             }
             exportZipBtn.disabled = false;
             exportCsvBtn.disabled = false;
+
+            const noun = data.count === 1 ? 'analysis' : 'analyses';
+            const varies = data.count > 1 && data.maxCostUsd > data.minCostUsd;
+
             logSummary.innerHTML =
-                '<strong>' + data.count + '</strong> ' + (data.count === 1 ? 'analysis' : 'analyses') +
-                ' logged · <strong>' + money(data.totalCostUsd) + '</strong> total API spend' +
-                ' · avg <strong>' + money(data.totalCostUsd / data.count) + '</strong>';
+                '<div class="stat-row">' +
+                    statTile('Analyses run', String(data.count)) +
+                    statTile('Total spent', money(data.totalCostUsd)) +
+                    statTile('Average per analysis', money(data.avgCostUsd),
+                        varies ? 'lowest ' + money(data.minCostUsd) +
+                                 ' · highest ' + money(data.maxCostUsd) : '') +
+                '</div>' +
+                '<p class="stat-note">' + (data.count === 1
+                    ? 'With one analysis logged, the total and the average are the same number.'
+                    : '<span class="eq">' + money(data.totalCostUsd) + ' ÷ ' + data.count + ' ' +
+                      noun + ' = ' + money(data.avgCostUsd) + '</span>. Any single analysis costs ' +
+                      'more or less than the average depending on the image size, how many aspects ' +
+                      'you pick, and how long the critique runs.') +
+                '</p>';
         } catch (err) {
             logSummary.textContent = 'Usage log unavailable.';
         }

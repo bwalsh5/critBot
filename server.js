@@ -440,9 +440,20 @@ function exportStamp() {
 // Summary of logged runs, for the UI history panel.
 app.get('/api/runs', (req, res) => {
   const runs = readRuns();
+
+  // Derived over every run rather than the 50 returned below: the UI shows the
+  // average next to the total, and computing it from a truncated list would
+  // make the two figures quietly disagree.
+  const costs = runs.map((r) => r.costUsd || 0);
+  const total = costs.reduce((t, c) => t + c, 0);
+  const round = (n) => Number(n.toFixed(6));
+
   res.json({
     count: runs.length,
-    totalCostUsd: Number(runs.reduce((t, r) => t + (r.costUsd || 0), 0).toFixed(6)),
+    totalCostUsd: round(total),
+    avgCostUsd: runs.length ? round(total / runs.length) : 0,
+    minCostUsd: runs.length ? round(Math.min(...costs)) : 0,
+    maxCostUsd: runs.length ? round(Math.max(...costs)) : 0,
     runs: runs.slice(-50).reverse()
   });
 });
