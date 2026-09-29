@@ -1,0 +1,39 @@
+name: Deploy
+
+# Every push to main redeploys. Secrets (ANTHROPIC_API_KEY, APP_PASSCODE) are
+# set once with `fly secrets set` and are not touched by this workflow.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Two deploys at once would fight over the single machine holding the volume.
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Fly.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # A syntax error would otherwise deploy, fail the health check, and roll
+      # back several minutes later. This catches it in seconds.
+      - name: Check syntax
+        run: |
+          for file in server.js auth.js zip.js costs.js; do
+            node --check "$file"
+          done
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

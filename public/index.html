@@ -6,6 +6,14 @@
     <meta name="theme-color" content="#121214">
     <meta name="color-scheme" content="dark">
     <meta name="mobile-web-app-capable" content="yes">
+    <!-- Safari still reads the apple- prefixed pair; without them iOS adds a
+         browser bookmark instead of a standalone app. -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Crit-Bot">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="icon" href="/icons/favicon-64.png" sizes="64x64" type="image/png">
     <title>Design Crit-Bot</title>
     <style>
         :root {

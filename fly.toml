@@ -1,0 +1,56 @@
+# Fly.io configuration.
+#
+# `app` must be unique across all of Fly, so if `fly launch` reports the name
+# is taken, change it here and re-run. `primary_region` should be the airport
+# code nearest your classroom — `fly platform regions` lists them.
+
+app = "critbot"
+primary_region = "ord"
+
+[build]
+
+[env]
+  PORT = "8080"
+  # The usage log lives on the mounted volume so it survives a deploy; the
+  # container's own filesystem is rebuilt from the image every time.
+  LOG_DIR = "/data"
+  # Do not retain submitted artwork or critique text on the server.
+  ARCHIVE_ARTEFACTS = "false"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+
+  # The machine stops when idle and starts again on the next request, so you
+  # are billed for actual use. A cold start costs a few seconds on the first
+  # tap of the day; every request after that is immediate.
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  # A critique holds one connection open for the length of the stream, so the
+  # limits are counted in concurrent requests rather than throughput.
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 10
+    hard_limit = 25
+
+  # Fly's health check. /healthz sits ahead of the passcode gate so the
+  # platform can reach it without credentials.
+  [[http_service.checks]]
+    method = "GET"
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+
+# The volume pins the app to a single machine. Do not scale past one instance:
+# a second would come up without the usage log and the run counter would
+# restart from 0001 alongside it.
+[mounts]
+  source = "critbot_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -8,6 +8,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "costs": "node costs.js"
+    "costs": "node costs.js",
+    "icons": "node tools/make-icons.js"
   }
 }

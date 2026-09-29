@@ -150,10 +150,12 @@ type `npm start`.
 
 ---
 
-## Opening it on a phone
+## Opening it on a phone, temporarily
 
-The address `localhost:3000` only works on the computer running the app. To use
-Crit-Bot on a phone, you create a temporary web link that points at it.
+The address `localhost:3000` only works on the computer running the app. For a
+quick test on a phone — a single class, with your laptop open — you can create a
+temporary web link that points at it. For something that stays up without your
+laptop, skip ahead to the next section instead.
 
 1. Leave the app running in its terminal window.
 2. Open a **second** terminal window with **Command-N**.
@@ -181,6 +183,188 @@ Things worth knowing:
 If you would rather not use an outside service and everyone is on the same
 Wi-Fi, you can instead find your computer's local address in **System Settings →
 Network** and have people visit that address followed by `:3000`.
+
+---
+
+## Putting it on a permanent web address
+
+This puts Crit-Bot on a real web address that works whether or not your laptop
+is on, protected by one passcode you give the class. Students add it to their
+home screen and it opens like an app.
+
+It takes about 20 minutes once. After that, every change you push to GitHub
+redeploys itself.
+
+### What this costs
+
+Two separate bills:
+
+- **Anthropic**, for the critiques themselves — a few cents each, the same as
+  running it locally. This is the one that adds up with a class using it.
+- **Fly.io**, for the server — roughly **$0–3 a month**. The server sleeps when
+  nobody is using it and wakes on the next visit, so you pay for actual use.
+  Storage for the usage log is about 15 cents a month.
+
+Fly asks for a card. Set a spending limit under **Billing** if you want a hard
+ceiling.
+
+### Step A — Make a Fly.io account
+
+1. Go to [fly.io](https://fly.io) and sign up.
+2. Add a card under **Billing**.
+
+Then install their command-line tool. In a terminal:
+
+```
+brew install flyctl
+```
+
+If that says `command not found: brew`, use this instead:
+
+```
+curl -L https://fly.io/install.sh | sh
+```
+
+Log in:
+
+```
+fly auth login
+```
+
+A browser window opens. Approve it and come back to the terminal.
+
+### Step B — Create the app
+
+Make sure you are in the Crit-Bot folder (step 3 above), then pick a name. It
+has to be unique across all of Fly, so put something of your own in it:
+
+```
+fly apps create critbot-yourname
+```
+
+Open `fly.toml` in that folder and change the first setting to match the name
+you just chose:
+
+```
+app = "critbot-yourname"
+```
+
+While you are in there, `primary_region = "ord"` is Chicago. Change it to the
+airport code nearest you if you like — `fly platform regions` lists them.
+
+### Step C — Make somewhere for the usage log to live
+
+The server is rebuilt from scratch on every deploy, so anything written to it is
+erased. This creates a small disk that survives:
+
+```
+fly volumes create critbot_data --size 1
+```
+
+It asks you to confirm; say yes.
+
+### Step D — Set the key and the passcode
+
+```
+fly secrets set ANTHROPIC_API_KEY=sk-ant-your-actual-key-here
+fly secrets set APP_PASSCODE=pick-something-here
+```
+
+The passcode is what you read out to the class. Anything you can say aloud and
+they can type on a phone works — `studio-fall-26` is the right shape. Anyone
+without it gets a login screen and nothing else.
+
+These are stored by Fly, not in the project folder, and never appear on GitHub.
+
+### Step E — Deploy
+
+```
+fly deploy
+```
+
+The first one takes a few minutes. When it finishes:
+
+```
+fly open
+```
+
+Your browser opens the live app at `https://critbot-yourname.fly.dev`. You
+should see the passcode screen.
+
+### Step F — Put it on a phone's home screen
+
+Send the address to whoever needs it, along with the passcode. On each phone:
+
+**iPhone** — open the address in **Safari** (this does not work in Chrome), tap
+the **Share** button, scroll down, tap **Add to Home Screen**.
+
+**Android** — open it in Chrome, tap the **⋮** menu, tap **Add to Home screen**.
+
+It now has its own icon and opens without any browser chrome around it.
+
+One quirk: on iPhone, the home-screen version keeps its own separate login. The
+first time you open it from the icon, expect to type the passcode once more.
+After that it stays signed in for 30 days.
+
+### Step G — Make it redeploy when you push
+
+Give GitHub permission to deploy for you:
+
+```
+fly tokens create deploy -x 8760h
+```
+
+It prints a long line starting with `FlyV1`. Copy the whole thing, including
+`FlyV1`.
+
+Then, in a browser:
+
+1. Go to your repository → **Settings** → **Secrets and variables** →
+   **Actions**.
+2. Click **New repository secret**.
+3. Name it exactly `FLY_API_TOKEN`, paste the token into the value box, and
+   click **Add secret**.
+
+That is it. From now on, every push to `main` rebuilds and redeploys the live
+app automatically. You can watch it happen under the **Actions** tab of your
+repository. If a deploy fails, the previous version keeps running.
+
+---
+
+## Running the deployed app
+
+**Change the passcode** (do this if it leaks, or between terms):
+
+```
+fly secrets set APP_PASSCODE=a-new-one
+```
+
+The server restarts and everyone is signed out and asked for the new one.
+
+**See what it is doing:**
+
+```
+fly logs
+```
+
+**Get the usage data out.** The history panel in the app has export buttons, or
+from a terminal:
+
+```
+fly ssh console -C "cat /data/usage.jsonl" > usage.jsonl
+```
+
+**Note what the server keeps.** The deployed version records one line per run —
+timestamp, image dimensions, which principles were chosen, token counts and
+cost. It deliberately does **not** keep the submitted artwork or the critique
+text, so student work does not pile up on a server. A local run still keeps
+both, in the `logs` folder.
+
+**Stop it costing anything:**
+
+```
+fly apps destroy critbot-yourname
+```
 
 ---
 

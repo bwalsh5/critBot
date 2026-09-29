@@ -1,0 +1,11 @@
+.git
+.github
+.claude
+node_modules
+public/node_modules
+logs
+.env
+.env.*
+tools
+README.md
+.DS_Store

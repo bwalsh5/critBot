@@ -5,6 +5,7 @@ import path from 'path';
 import { appendFile, mkdir, writeFile, readFile } from 'fs/promises';
 import { existsSync, readFileSync } from 'fs';
 import { createZip, toCsv } from './zip.js';
+import { installAuth } from './auth.js';
 import { fileURLToPath } from 'url';
 import 'dotenv/config';
 
@@ -73,6 +74,13 @@ if (!process.env.ANTHROPIC_API_KEY) {
 }
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// Liveness probe for the host's health check. Deliberately ahead of the gate:
+// the platform has no passcode.
+app.get('/healthz', (req, res) => res.json({ ok: true }));
+
+// Everything below this line requires the passcode, static files included.
+installAuth(app, express);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const MODEL = 'claude-opus-5';
@@ -88,10 +96,21 @@ const EFFORT = 'medium';
  */
 const PRICING = { input: 5.00, output: 25.00, cacheRead: 0.50, cacheWrite: 6.25 };
 
-const LOG_DIR = path.join(__dirname, 'logs');
+// Overridden in production to point at a mounted volume, so the usage log
+// outlives the container it was written in. Defaults to ./logs locally.
+const LOG_DIR = process.env.LOG_DIR || path.join(__dirname, 'logs');
 const USAGE_LOG = path.join(LOG_DIR, 'usage.jsonl');
 const IMAGE_DIR = path.join(LOG_DIR, 'images');
 const CRITIQUE_DIR = path.join(LOG_DIR, 'critiques');
+
+/**
+ * Whether to keep the submitted image and the critique text on disk.
+ *
+ * Off on the shared server: student artwork should not accumulate on a box
+ * nobody is administering, and the usage log alone carries everything the cost
+ * analysis needs. On by default, so a local run still archives as before.
+ */
+const ARCHIVE_ARTEFACTS = process.env.ARCHIVE_ARTEFACTS !== 'false';
 
 const EXTENSION = {
   'image/png': 'png',
@@ -474,9 +493,10 @@ app.get('/api/export.zip', async (req, res) => {
     const runs = readRuns();
     if (runs.length === 0) return res.status(404).json({ error: 'No runs logged yet.' });
 
+    const hasArtefacts = runs.some((r) => r.imageFile || r.critiqueFile);
     const entries = [
       { name: 'runs.csv', data: toCsv(CSV_COLUMNS, runs.map(toCsvRow)) },
-      { name: 'README.txt', data: buildReadme(runs) }
+      { name: 'README.txt', data: buildReadme(runs, hasArtefacts) }
     ];
 
     let missing = 0;
@@ -504,8 +524,49 @@ app.get('/api/export.zip', async (req, res) => {
   }
 });
 
-function buildReadme(runs) {
+function buildReadme(runs, hasArtefacts) {
   const total = runs.reduce((t, r) => t + (r.costUsd || 0), 0);
+
+  // The shared server runs with ARCHIVE_ARTEFACTS=false, so an export from it
+  // is the CSV alone. Describing files that aren't in the zip would send a
+  // reader hunting for them.
+  const contents = hasArtefacts
+    ? [
+      '  runs.csv          one row per analysis, keyed by run_id',
+      '  images/<id>.<ext> the exact image bytes submitted for that run',
+      '  critiques/<id>.md the feedback text returned for that run'
+    ]
+    : [
+      '  runs.csv          one row per analysis, keyed by run_id',
+      '',
+      '  This server stores usage data only. Submitted images and critique',
+      '  text are not retained, so the image_file and critique_file columns',
+      '  are empty and no image or critique files are included here.'
+    ];
+
+  const joining = hasArtefacts
+    ? [
+      'JOINING IN R',
+      '  runs <- read.csv("runs.csv", stringsAsFactors = FALSE)',
+      '  runs$critique <- sapply(runs$critique_file, function(p)',
+      '      if (nzchar(p) && file.exists(p)) paste(readLines(p, warn = FALSE), collapse = "\\n") else NA)',
+      '  lenses <- runs[, grep("^lens_", names(runs))]   # 0/1 indicator matrix',
+      '',
+      '  IMPORTANT: read.csv() parses run_id as an integer and drops the zero',
+      '  padding (0001 -> 1), so do NOT rebuild paths with paste0("images/",',
+      '  run_id). Use the image_file and critique_file columns, which hold the',
+      '  correct relative paths. To keep the padding, read with',
+      '    read.csv("runs.csv", colClasses = c(run_id = "character"))'
+    ]
+    : [
+      'READING IN R',
+      '  runs <- read.csv("runs.csv", colClasses = c(run_id = "character"))',
+      '  lenses <- runs[, grep("^lens_", names(runs))]   # 0/1 indicator matrix',
+      '',
+      '  run_id is read as character on purpose: read.csv() would otherwise',
+      '  parse it as an integer and drop the zero padding (0001 -> 1).'
+    ];
+
   return [
     'critBot usage export',
     'Generated: ' + new Date().toISOString(),
@@ -513,21 +574,9 @@ function buildReadme(runs) {
     `${runs.length} runs, ${total.toFixed(4)} total API spend.`,
     '',
     'CONTENTS',
-    '  runs.csv          one row per analysis, keyed by run_id',
-    '  images/<id>.<ext> the exact image bytes submitted for that run',
-    '  critiques/<id>.md the feedback text returned for that run',
+    ...contents,
     '',
-    'JOINING IN R',
-    '  runs <- read.csv("runs.csv", stringsAsFactors = FALSE)',
-    '  runs$critique <- sapply(runs$critique_file, function(p)',
-    '      if (nzchar(p) && file.exists(p)) paste(readLines(p, warn = FALSE), collapse = "\\n") else NA)',
-    '  lenses <- runs[, grep("^lens_", names(runs))]   # 0/1 indicator matrix',
-    '',
-    '  IMPORTANT: read.csv() parses run_id as an integer and drops the zero',
-    '  padding (0001 -> 1), so do NOT rebuild paths with paste0("images/",',
-    '  run_id). Use the image_file and critique_file columns, which hold the',
-    '  correct relative paths. To keep the padding, read with',
-    '    read.csv("runs.csv", colClasses = c(run_id = "character"))',
+    ...joining,
     '',
     'NOTES',
     '  cost_usd is computed from the token counts using the rates below, not',
@@ -686,15 +735,17 @@ app.post('/api/critique', (req, res) => {
 
       // Archive the exact bytes analyzed and the feedback given. A storage
       // failure must not lose the critique the user is already reading.
-      let archived = true;
-      try {
-        await mkdir(IMAGE_DIR, { recursive: true });
-        await mkdir(CRITIQUE_DIR, { recursive: true });
-        await writeFile(path.join(LOG_DIR, imageFile), req.file.buffer);
-        await writeFile(path.join(LOG_DIR, critiqueFile), critique);
-      } catch (err) {
-        archived = false;
-        console.error('⚠️ Could not archive run artefacts:', err.message);
+      let archived = ARCHIVE_ARTEFACTS;
+      if (ARCHIVE_ARTEFACTS) {
+        try {
+          await mkdir(IMAGE_DIR, { recursive: true });
+          await mkdir(CRITIQUE_DIR, { recursive: true });
+          await writeFile(path.join(LOG_DIR, imageFile), req.file.buffer);
+          await writeFile(path.join(LOG_DIR, critiqueFile), critique);
+        } catch (err) {
+          archived = false;
+          console.error('⚠️ Could not archive run artefacts:', err.message);
+        }
       }
 
       const record = {
@@ -724,7 +775,8 @@ app.post('/api/critique', (req, res) => {
       };
       await logUsage(record);
 
-      console.log(`📦 Archived as run ${runId}${archived ? '' : ' (artefacts failed)'}`);
+      const archiveNote = archived ? '' : ARCHIVE_ARTEFACTS ? ' (artefacts failed)' : ' (usage only)';
+      console.log(`📦 Logged as run ${runId}${archiveNote}`);
       console.log('✅ [4/4] Claude responded successfully.');
 
       // The receipt the UI renders.
