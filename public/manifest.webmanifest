@@ -1,6 +1,6 @@
 {
-  "name": "Design Crit-Bot",
-  "short_name": "Crit-Bot",
+  "name": "CritBot",
+  "short_name": "CritBot",
   "description": "Photograph a piece of student work and get feedback on chosen design principles.",
   "start_url": "/",
   "scope": "/",

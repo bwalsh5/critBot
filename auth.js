@@ -120,7 +120,7 @@ function loginPage({ error, next }) {
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<title>Design Crit-Bot</title>
+<title>CritBot</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -152,7 +152,7 @@ function loginPage({ error, next }) {
 <body>
   <form method="POST" action="/login">
     <img src="/icons/icon-192.png" alt="">
-    <h1>Design Crit-Bot</h1>
+    <h1>CritBot</h1>
     ${hint}
     <input type="password" name="passcode" inputmode="text" autocomplete="current-password"
            placeholder="Passcode" autofocus required aria-label="Class passcode">

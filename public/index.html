@@ -10,11 +10,11 @@
          browser bookmark instead of a standalone app. -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Crit-Bot">
+    <meta name="apple-mobile-web-app-title" content="CritBot">
     <link rel="manifest" href="/manifest.webmanifest">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
     <link rel="icon" href="/icons/favicon-64.png" sizes="64x64" type="image/png">
-    <title>Design Crit-Bot</title>
+    <title>CritBot</title>
     <style>
         :root {
             --bg-color: #121214;
@@ -61,11 +61,6 @@
             margin: 0;
             font-size: 1.4rem;
             letter-spacing: -0.6px;
-        }
-        .masthead p {
-            margin: 4px 0 0;
-            color: var(--text-muted);
-            font-size: 0.9rem;
         }
 
         .panel {
@@ -246,7 +241,7 @@
 
         /* ---- Receipt ---- */
         .receipt {
-            margin: -4px 0 16px;
+            margin: 18px 0 0;
             padding: 14px;
             background: var(--card-bg-raised);
             border: 1px solid var(--border);
@@ -456,6 +451,123 @@
             outline: 2px solid var(--accent);
             outline-offset: 2px;
         }
+
+        /* The info button sits inside the pill visually but is a sibling of
+           the <label> in the DOM, so tapping it never toggles the checkbox. */
+        .chip-wrap { position: relative; display: inline-flex; }
+        .chip-wrap .chip span { padding-right: 42px; }
+        .info-btn {
+            position: absolute;
+            top: 50%;
+            right: 5px;
+            transform: translateY(-50%);
+            width: 34px;
+            height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            background: none;
+            border: none;
+            border-radius: 50%;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+        .info-btn::before {
+            content: "i";
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px solid currentColor;
+            border-radius: 50%;
+            font: italic 600 11px/1 Georgia, serif;
+        }
+        .info-btn:hover, .info-btn[aria-expanded="true"] { color: var(--text-main); }
+        .info-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+
+        .aspects-section { position: relative; }
+        .aspect-tip {
+            position: absolute;
+            z-index: 30;
+            max-width: min(300px, calc(100% - 24px));
+            padding: 10px 13px;
+            background: #2b2b33;
+            border: 1px solid #3b3b45;
+            border-radius: 9px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+            font-size: 0.82rem;
+            line-height: 1.45;
+            color: var(--text-main);
+        }
+        .aspect-tip[hidden] { display: none; }
+        .aspect-tip strong { display: block; margin-bottom: 3px; }
+
+        /* ---- Sycophancy dial ---- */
+        .tone-row {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+        .dial {
+            flex-shrink: 0;
+            width: 148px;
+            height: 148px;
+            border-radius: 50%;
+            touch-action: none;
+            cursor: grab;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .dial:active { cursor: grabbing; }
+        .dial:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .dial svg { display: block; width: 100%; height: 100%; overflow: visible; }
+        .dial .track { stroke: var(--border); }
+        .dial .fill { stroke: var(--accent); }
+        .dial .face { fill: var(--card-bg-raised); stroke: #3a3a44; }
+        .dial .pointer { stroke: var(--text-main); }
+        .dial .tick-label {
+            fill: var(--text-muted);
+            font: 600 11px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            cursor: pointer;
+        }
+        .dial .tick-label.on { fill: var(--accent); }
+        .tone-readout { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .tone-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            line-height: 1.1;
+            font-variant-numeric: tabular-nums;
+        }
+        .tone-name { font-weight: 600; color: var(--accent); }
+        .tone-hint { margin-top: 6px; font-size: 0.78rem; color: var(--text-muted); }
+
+        /* ---- TL;DR gets a tinted block so it reads as the summary ---- */
+        .crit-section.tldr {
+            margin-bottom: 6px;
+            padding: 0 14px;
+            background: var(--accent-dim);
+            border: 1px solid rgba(255, 71, 87, 0.35);
+            border-radius: 10px;
+        }
+        .crit-section.tldr .sec-body li { margin-bottom: 4px; }
+
+        /* ---- Usage log (collapsed by default) ---- */
+        .usage-panel > summary {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 44px;
+            margin: -6px 0;
+            cursor: pointer;
+            list-style: none;
+        }
+        .usage-panel > summary::-webkit-details-marker { display: none; }
+        .usage-panel > summary h2 { flex: 1; margin: 0; }
+        .usage-panel > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+        .usage-panel[open] > summary .chev { transform: rotate(90deg); }
+        .usage-body { margin-top: 18px; }
 
         .note-input {
             width: 100%;
@@ -684,6 +796,7 @@
             transition: transform 0.18s ease;
         }
         .crit-section[open] > summary .chev { transform: rotate(90deg); }
+        .critique-section[hidden] { display: none; }
         @media (prefers-reduced-motion: reduce) {
             .chev { transition: none; }
         }
@@ -760,9 +873,15 @@
                 align-items: start;
             }
             .masthead { grid-column: 1 / -1; }
+            /* Until there is a critique to show, one centered column rather
+               than a form beside an empty half of the screen. */
+            .container:has(> .critique-section[hidden]) {
+                grid-template-columns: minmax(0, 620px);
+                justify-content: center;
+            }
             .critique-section {
                 grid-column: 2;
-                grid-row: 2 / span 3;
+                grid-row: 2 / span 4;
                 position: sticky;
                 top: 40px;
                 max-height: calc(100vh - 80px);
@@ -791,8 +910,7 @@
 
 <div class="container">
     <header class="masthead">
-        <h1>Design Crit-Bot</h1>
-        <p>Structural critique from an objective design director.</p>
+        <h1>CritBot</h1>
     </header>
 
     <!-- Upload -->
@@ -851,6 +969,22 @@
         <div class="chips" id="aspectChips" role="group" aria-label="Design aspects to analyze"></div>
         <textarea class="note-input" id="noteInput" rows="2" maxlength="500"
                   placeholder="Optional: what is this for? (e.g. lobby poster, viewed from 10 feet)"></textarea>
+        <div class="aspect-tip" id="aspectTip" role="tooltip" hidden></div>
+    </section>
+
+    <!-- Sycophancy dial -->
+    <section class="panel tone-section">
+        <h2>Sycophancy dial</h2>
+        <div class="tone-row">
+            <div class="dial" id="toneDial" role="slider" tabindex="0"
+                 aria-label="Sycophancy" aria-valuemin="-3" aria-valuemax="3" aria-valuenow="0"
+                 aria-valuetext="0, Balanced"></div>
+            <div class="tone-readout" aria-hidden="true">
+                <span class="tone-value" id="toneValue">0</span>
+                <span class="tone-name" id="toneName">Balanced</span>
+                <span class="tone-hint">−3 is unsparing, +3 is flattering. Drag the dial, tap a number, or use the arrow keys.</span>
+            </div>
+        </div>
     </section>
 
     <!-- Action -->
@@ -865,7 +999,7 @@
     </div>
 
     <!-- Results -->
-    <section class="panel critique-section" id="critiqueSection">
+    <section class="panel critique-section" id="critiqueSection" hidden>
         <h2>Critique</h2>
 
         <div class="crit-toolbar" id="critToolbar" hidden>
@@ -879,22 +1013,24 @@
             <nav class="section-nav" id="sectionNav" aria-label="Jump to section"></nav>
         </div>
 
+        <div id="critiqueOutput" class="critique-content" aria-busy="false"></div>
+
+        <!-- After the critique, so the TL;DR is the first thing read. -->
         <div class="receipt" id="receipt" hidden></div>
-
-        <div id="critiqueOutput" class="critique-content" aria-busy="false">
-            <p class="placeholder-text">Choose an image, pick the aspects you care about, and run the analysis.</p>
-        </div>
     </section>
+
+    <details class="panel usage-panel" id="usagePanel">
+        <summary><h2>Usage log</h2><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></summary>
+        <div class="usage-body">
+            <div class="log-summary" id="logSummary">Loading…</div>
+            <div class="export-row">
+                <button type="button" class="tool-btn" id="exportZipBtn">Download all (.zip)</button>
+                <button type="button" class="tool-btn" id="exportCsvBtn">Data only (.csv)</button>
+            </div>
+        </div>
+    </details>
 </div>
-
-    <section class="panel" id="usagePanel">
-        <h2>Usage log</h2>
-        <div class="log-summary" id="logSummary">Loading…</div>
-        <div class="export-row">
-            <button type="button" class="tool-btn" id="exportZipBtn">Download all (.zip)</button>
-            <button type="button" class="tool-btn" id="exportCsvBtn">Data only (.csv)</button>
-        </div>
-    </section>
 
 <button type="button" class="to-top" id="toTopBtn" aria-label="Back to top" title="Back to top">↑</button>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -942,6 +1078,11 @@
     const logSummary = document.getElementById('logSummary');
     const exportZipBtn = document.getElementById('exportZipBtn');
     const exportCsvBtn = document.getElementById('exportCsvBtn');
+    const aspectTip = document.getElementById('aspectTip');
+    const aspectsSection = document.querySelector('.aspects-section');
+    const toneDial = document.getElementById('toneDial');
+    const toneValueEl = document.getElementById('toneValue');
+    const toneNameEl = document.getElementById('toneName');
 
     // Image tokens are billed on pixel dimensions, not file size: measured on
     // claude-opus-5, a 1176x1568 image costs 2355 input tokens while anything
@@ -966,8 +1107,12 @@
         try {
             const res = await fetch('/api/aspects');
             if (!res.ok) throw new Error('Could not load aspect list.');
-            const { aspects } = await res.json();
+            const { aspects, tones } = await res.json();
             renderAspects(aspects);
+            if (Array.isArray(tones)) {
+                for (const t of tones) TONE_NAMES[t.value] = t.name;
+                setTone(tone);
+            }
         } catch (err) {
             aspectChips.innerHTML =
                 '<p class="error-text" style="margin:0">Could not load the aspect list. The full set will be used.</p>';
@@ -978,13 +1123,27 @@
     function renderAspects(aspects) {
         aspectChips.innerHTML = '';
         for (const aspect of aspects) {
+            const wrap = document.createElement('div');
+            wrap.className = 'chip-wrap';
+
+            // Starts unchecked: the student opts in to the lenses they want.
             const label = document.createElement('label');
             label.className = 'chip';
-            label.innerHTML =
-                '<input type="checkbox" value="' + aspect.id + '" checked>' +
-                '<span></span>';
+            label.innerHTML = '<input type="checkbox" value="' + aspect.id + '"><span></span>';
             label.querySelector('span').textContent = aspect.label;
-            aspectChips.appendChild(label);
+            wrap.appendChild(label);
+
+            if (aspect.explain) {
+                const info = document.createElement('button');
+                info.type = 'button';
+                info.className = 'info-btn';
+                info.setAttribute('aria-label', 'What is ' + aspect.label + '?');
+                info.setAttribute('aria-expanded', 'false');
+                info.dataset.title = aspect.label;
+                info.dataset.explain = aspect.explain;
+                wrap.appendChild(info);
+            }
+            aspectChips.appendChild(wrap);
         }
         aspectChips.addEventListener('change', updateCount);
         updateCount();
@@ -1015,6 +1174,170 @@
 
     selectAllBtn.addEventListener('click', () => setAllAspects(true));
     clearAspectsBtn.addEventListener('click', () => setAllAspects(false));
+
+    /* ---------------- Aspect explanations ---------------- */
+
+    let tipOwner = null;
+
+    function openTip(btn) {
+        closeTip();
+        tipOwner = btn;
+        btn.setAttribute('aria-expanded', 'true');
+        aspectTip.innerHTML = '<strong></strong><span></span>';
+        aspectTip.firstChild.textContent = btn.dataset.title;
+        aspectTip.lastChild.textContent = btn.dataset.explain;
+        btn.setAttribute('aria-describedby', 'aspectTip');
+        aspectTip.hidden = false;
+
+        // Position below the chip, kept inside the panel's edges.
+        const panel = aspectsSection.getBoundingClientRect();
+        const chip = btn.parentElement.getBoundingClientRect();
+        const tipW = aspectTip.offsetWidth;
+        const left = clamp(chip.left - panel.left, 12, panel.width - tipW - 12);
+        aspectTip.style.left = left + 'px';
+        aspectTip.style.top = (chip.bottom - panel.top + 6) + 'px';
+    }
+
+    function closeTip() {
+        if (!tipOwner) return;
+        tipOwner.setAttribute('aria-expanded', 'false');
+        tipOwner.removeAttribute('aria-describedby');
+        tipOwner = null;
+        aspectTip.hidden = true;
+    }
+
+    aspectChips.addEventListener('click', (e) => {
+        const btn = e.target.closest('.info-btn');
+        if (!btn) return;
+        e.preventDefault();
+        if (tipOwner === btn) closeTip();
+        else openTip(btn);
+    });
+    document.addEventListener('click', (e) => {
+        if (tipOwner && !e.target.closest('.info-btn') && !aspectTip.contains(e.target)) closeTip();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && tipOwner) {
+            const owner = tipOwner;
+            closeTip();
+            owner.focus();
+        }
+    });
+    window.addEventListener('resize', closeTip);
+
+    /* ---------------- Sycophancy dial ---------------- */
+
+    // Overwritten from /api/aspects so the server stays the single source.
+    const TONE_NAMES = {
+        '-3': 'Unsparing', '-2': 'Blunt', '-1': 'Candid', '0': 'Balanced',
+        '1': 'Encouraging', '2': 'Generous', '3': 'Sycophantic'
+    };
+    const TONE_MIN = -3;
+    const TONE_MAX = 3;
+    const DEG_PER_STEP = 45; // -3..+3 sweeps -135°..+135°, 0 at twelve o'clock
+    const DIAL = { c: 74, track: 50, face: 38, labels: 66 };
+
+    let tone = 0;
+
+    function polar(r, deg) {
+        const rad = deg * Math.PI / 180;
+        return [DIAL.c + r * Math.sin(rad), DIAL.c - r * Math.cos(rad)];
+    }
+
+    function arcPath(r, from, to) {
+        if (Math.abs(to - from) < 0.01) return '';
+        const [x1, y1] = polar(r, Math.min(from, to));
+        const [x2, y2] = polar(r, Math.max(from, to));
+        const large = Math.abs(to - from) > 180 ? 1 : 0;
+        return 'M' + x1.toFixed(2) + ' ' + y1.toFixed(2) +
+               ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x2.toFixed(2) + ' ' + y2.toFixed(2);
+    }
+
+    function buildDial() {
+        let labels = '';
+        for (let v = TONE_MIN; v <= TONE_MAX; v++) {
+            const [x, y] = polar(DIAL.labels, v * DEG_PER_STEP);
+            labels += '<text class="tick-label" data-value="' + v + '" x="' + x.toFixed(2) +
+                '" y="' + y.toFixed(2) + '" text-anchor="middle" dominant-baseline="central">' +
+                (v > 0 ? '+' + v : v === 0 ? '0' : '−' + Math.abs(v)) + '</text>';
+        }
+        const full = DIAL.c * 2;
+        toneDial.innerHTML =
+            '<svg viewBox="0 0 ' + full + ' ' + full + '" aria-hidden="true">' +
+            '<path class="track" fill="none" stroke-width="6" stroke-linecap="round" d="' +
+                arcPath(DIAL.track, TONE_MIN * DEG_PER_STEP, TONE_MAX * DEG_PER_STEP) + '"/>' +
+            '<path class="fill" fill="none" stroke-width="6" stroke-linecap="round" d=""/>' +
+            '<circle class="face" stroke-width="1.5" cx="' + DIAL.c + '" cy="' + DIAL.c + '" r="' + DIAL.face + '"/>' +
+            '<line class="pointer" stroke-width="3.5" stroke-linecap="round"/>' +
+            labels +
+            '</svg>';
+    }
+
+    function setTone(v) {
+        tone = clamp(Math.round(v), TONE_MIN, TONE_MAX);
+        const deg = tone * DEG_PER_STEP;
+        const [x1, y1] = polar(DIAL.face - 22, deg);
+        const [x2, y2] = polar(DIAL.face - 7, deg);
+        const pointer = toneDial.querySelector('.pointer');
+        pointer.setAttribute('x1', x1); pointer.setAttribute('y1', y1);
+        pointer.setAttribute('x2', x2); pointer.setAttribute('y2', y2);
+        toneDial.querySelector('.fill').setAttribute('d', arcPath(DIAL.track, 0, deg));
+        toneDial.querySelectorAll('.tick-label').forEach((t) => {
+            t.classList.toggle('on', Number(t.dataset.value) === tone);
+        });
+
+        const shown = tone > 0 ? '+' + tone : tone < 0 ? '−' + Math.abs(tone) : '0';
+        const name = TONE_NAMES[tone];
+        toneValueEl.textContent = shown;
+        toneNameEl.textContent = name;
+        toneDial.setAttribute('aria-valuenow', String(tone));
+        toneDial.setAttribute('aria-valuetext', tone + ', ' + name);
+    }
+
+    /** Pointer position -> nearest step, measured clockwise from twelve o'clock. */
+    function toneFromPointer(e) {
+        const rect = toneDial.getBoundingClientRect();
+        const dx = e.clientX - (rect.left + rect.width / 2);
+        const dy = e.clientY - (rect.top + rect.height / 2);
+        const deg = Math.atan2(dx, -dy) * 180 / Math.PI; // -180..180
+        // The dead zone at the bottom snaps to whichever end is nearer.
+        return Math.round(clamp(deg, TONE_MIN * DEG_PER_STEP, TONE_MAX * DEG_PER_STEP) / DEG_PER_STEP);
+    }
+
+    let dialDragging = false;
+    toneDial.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        toneDial.focus();
+        const tick = e.target.closest('.tick-label');
+        setTone(tick ? Number(tick.dataset.value) : toneFromPointer(e));
+        dialDragging = true;
+        toneDial.setPointerCapture(e.pointerId);
+    });
+    toneDial.addEventListener('pointermove', (e) => {
+        if (dialDragging) setTone(toneFromPointer(e));
+    });
+    const endDialDrag = (e) => {
+        dialDragging = false;
+        try { toneDial.releasePointerCapture(e.pointerId); } catch { /* already released */ }
+    };
+    toneDial.addEventListener('pointerup', endDialDrag);
+    toneDial.addEventListener('pointercancel', endDialDrag);
+    toneDial.addEventListener('dblclick', () => setTone(0));
+    toneDial.addEventListener('keydown', (e) => {
+        const step = {
+            ArrowRight: 1, ArrowUp: 1, PageUp: 1,
+            ArrowLeft: -1, ArrowDown: -1, PageDown: -1
+        }[e.key];
+        if (step) setTone(tone + step);
+        else if (e.key === 'Home') setTone(TONE_MIN);
+        else if (e.key === 'End') setTone(TONE_MAX);
+        else if (e.key === '0') setTone(0);
+        else return;
+        e.preventDefault();
+    });
+
+    buildDial();
+    setTone(0);
 
     /* ---------------- File handling ---------------- */
 
@@ -1495,8 +1818,10 @@
             }
             const id = 'sec-' + index;
             const body = chunk.slice(match[0].length);
-            titles.push({ id: id, title: stripTags(match[1]) });
-            out += '<details class="crit-section" id="' + id + '"' +
+            const title = stripTags(match[1]);
+            titles.push({ id: id, title: title });
+            const extra = /^tl;?\s*dr/i.test(title) ? ' tldr' : '';
+            out += '<details class="crit-section' + extra + '" id="' + id + '"' +
                    (collapsed.has(id) ? '' : ' open') + '>' +
                    '<summary><h3>' + match[1] + '</h3>' + CHEVRON + '</summary>' +
                    '<div class="sec-body">' + body + '</div>' +
@@ -1655,6 +1980,7 @@
             '<tr><td>Image</td><td>' + dims + ' · ' + escapeHtml(r.mediaType.replace('image/', '')) +
                 ' · ' + formatBytes(r.bytes) + '</td></tr>' +
             '<tr><td>Model</td><td>' + escapeHtml(r.model) + ' · effort ' + escapeHtml(r.effort) + '</td></tr>' +
+            (r.tone !== undefined ? '<tr><td>Sycophancy</td><td>' + (r.tone > 0 ? '+' : '') + r.tone + '</td></tr>' : '') +
             body +
             '<tr><td>Elapsed</td><td>' + r.seconds.toFixed(1) + 's</td></tr>' +
             '<tr class="total"><td>Total for this run</td><td>' + money(r.costUsd) + '</td></tr>' +
@@ -1777,6 +2103,7 @@
             '',
             'Date: ' + lastRun.date,
             'Aspects analyzed: ' + lastRun.aspects.join(', '),
+            'Sycophancy: ' + (lastRun.tone > 0 ? '+' : '') + lastRun.tone + ' (' + TONE_NAMES[lastRun.tone] + ')',
         ];
         if (lastRun.note) header.push('Context: ' + lastRun.note);
         // (receipt is appended after the critique body)
@@ -1893,7 +2220,17 @@
         updateSubmitState();
     }
 
+    /** The critique panel stays out of the page until there is something in it. */
+    function revealCritique() {
+        if (!critiqueSection.hidden) return;
+        critiqueSection.hidden = false;
+        // On desktop this switches the layout to two columns, so the editor
+        // preview has to be re-measured for its narrower column.
+        if (edit.work) drawEditor();
+    }
+
     function showError(message) {
+        revealCritique();
         critiqueOutput.innerHTML = '<p class="error-text"></p>';
         critiqueOutput.firstChild.textContent = '⚠️ ' + message;
     }
@@ -1912,6 +2249,7 @@
         if (!selectedFile || submitBtn.dataset.busy === 'true') return;
 
         setBusy(true, 'Preparing image…');
+        revealCritique();
         critiqueOutput.innerHTML = '<p class="placeholder-text">Analyzing visual properties…</p>';
         critToolbar.hidden = true;
         receiptEl.hidden = true;
@@ -1934,16 +2272,20 @@
                 String(now.getDate()).padStart(2, '0')
             ].join('-'),
             aspects: selectedLabels,
+            tone: tone,
             note: noteInput.value.trim(),
             markdown: ''
         };
 
         let markdown = '';
         let renderQueued = false;
+        let finished = false;
 
+        // A frame queued by the last delta can fire after the final paint
+        // below; without this guard it repaints the streaming caret back in.
         const flushRender = () => {
             renderQueued = false;
-            paint(markdown, true);
+            if (!finished) paint(markdown, true);
         };
 
         try {
@@ -1952,6 +2294,7 @@
             const formData = new FormData();
             formData.append('designImage', image);
             formData.append('aspects', JSON.stringify(selectedIds));
+            formData.append('tone', String(lastRun.tone));
             if (noteInput.value.trim()) formData.append('note', noteInput.value.trim());
 
             setBusy(true, 'Sending to the director…');
@@ -1999,6 +2342,7 @@
                 }
             }
 
+            finished = true;
             if (markdown) {
                 lastRun.markdown = markdown;
                 paint(markdown, false);
@@ -2010,6 +2354,7 @@
 
         } catch (error) {
             console.error('Frontend Capture Exception:', error);
+            finished = true;
             if (markdown) {
                 // Keep whatever arrived before the break rather than discarding it.
                 lastRun.markdown = markdown;

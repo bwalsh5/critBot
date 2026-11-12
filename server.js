@@ -251,90 +251,138 @@ async function logUsage(record) {
 
 /**
  * The selectable analysis lenses. `id` is the wire value the UI sends,
- * `label` is what the UI renders, `brief` is what Claude is told the lens means
- * so the critique stays specific instead of restating the term back.
+ * `label` is what the UI renders, `explain` is the plain-language definition
+ * the UI shows behind each chip's info button, and `brief` is what Claude is
+ * told the lens means so the critique stays specific instead of restating the
+ * term back.
  */
 const DESIGN_ASPECTS = [
   {
     id: 'visual-hierarchy',
     label: 'Visual hierarchy',
+    explain: 'The order in which a viewer notices things. Size, weight, color and position tell the eye what to look at first, second and third.',
     brief: 'Does scale, weight, and position rank the content in the order a viewer should absorb it? Name the actual reading order you observe and where it diverges from the intended one.'
   },
   {
     id: 'emphasis',
     label: 'Emphasis',
+    explain: 'The focal point: the one element that grabs attention first. If everything shouts, nothing stands out.',
     brief: 'What is the dominant element, and is it the element that deserves dominance? Look for competing focal points and under-served ones.'
   },
   {
     id: 'movement',
     label: 'Movement',
+    explain: 'The path your eye travels through a design, guided by lines, direction, repetition and placement.',
     brief: 'Trace the path the eye takes through the composition. Identify dead ends, places the path stalls, and whether it terminates somewhere useful.'
   },
   {
     id: 'proximity',
     label: 'Proximity',
+    explain: 'Things placed close together read as related. Space between things reads as separation.',
     brief: 'Does spacing group related content and separate unrelated content? Flag items that read as belonging together but do not, and vice versa.'
   },
   {
     id: 'alignment',
     label: 'Alignment',
+    explain: 'Lining elements up along shared edges or centers, often on an underlying grid, so the layout feels organized and connected.',
     brief: 'Is there a discernible underlying grid? Identify edges that almost align (the worst case) and elements placed without apparent reference.'
   },
   {
     id: 'white-space',
     label: 'White space',
+    explain: "The empty space around and between elements. It isn't wasted: it gives content room to breathe and steers focus.",
     brief: 'Assess negative space as an active material: breathing room around key elements, margin consistency, crowding, and unintentional trapped space.'
   },
   {
     id: 'typographic-readability',
     label: 'Typographic readability',
+    explain: 'How easily the text can be read: size, the space between lines (leading), line length, contrast, and where lines break.',
     brief: 'Evaluate size, leading, measure, line breaks, contrast, and case at the distance and medium this design will actually be read from. Comment on whether line breaks follow linguistic structure or available width.'
   },
   {
     id: 'gestalt',
     label: 'Gestalt similarity / common region',
+    explain: 'We group things that look alike (same color, shape or size) or that sit inside the same boundary, like a box or a background panel.',
     brief: 'Where does shared treatment (color, shape, weight) or an enclosing region imply a relationship? Note relationships implied but not intended, and intended but not implied.'
   },
   {
     id: 'task-hierarchy',
     label: 'Task-oriented information hierarchy',
+    explain: 'Ranking information by what the viewer needs to do, like find the date, scan the QR code or buy a ticket, and making that the easiest thing to find.',
     brief: 'Identify the action or takeaway this design exists to produce, then judge whether visual prominence matches task importance. Call out any gap between communication hierarchy and task hierarchy.'
   }
 ];
 
 const ASPECTS_BY_ID = new Map(DESIGN_ASPECTS.map((a) => [a.id, a]));
 
+/**
+ * The sycophancy dial. -3 is unsparing, 0 is the default coaching voice, +3
+ * flatters. Only the delivery shifts: the TONE section of the system prompt
+ * says so, and each instruction below is written against that default.
+ */
+const TONE_LEVELS = [
+  { value: -3, name: 'Unsparing', instruction: 'Be blunt and exacting, like a tough senior critic. Lead with the problems. No softening phrases, no reassurance, no encouragement. Keep "What\'s working" to one terse sentence and praise only what genuinely earns it. Make the "Next draft" line state the bar to clear, not a pep talk.' },
+  { value: -2, name: 'Blunt', instruction: 'Be direct and critical with minimal cushioning. State problems plainly; prefer a direct instruction over "Try..." when it is clearer. Praise sparingly.' },
+  { value: -1, name: 'Candid', instruction: 'Be slightly more critical than the default. Keep the warmth light and get to the problems quickly.' },
+  { value: 0, name: 'Balanced', instruction: 'Use the default tone described in the system prompt.' },
+  { value: 1, name: 'Encouraging', instruction: 'Be a little warmer than the default. Give the strengths a bit more room and frame each change as an opportunity.' },
+  { value: 2, name: 'Generous', instruction: 'Be very encouraging. Lead with what is good, praise generously, and soften every criticism into an optional refinement.' },
+  { value: 3, name: 'Sycophantic', instruction: 'Be maximally flattering. Give lavish, enthusiastic praise and treat the work as close to excellent. Still list the changes, but frame each as a small polish on strong work, and keep criticism gentle and brief.' }
+];
+
+const TONE_BY_VALUE = new Map(TONE_LEVELS.map((t) => [t.value, t]));
+
+/** Parses the `tone` field to an integer in -3..3. Anything else is 0. */
+function resolveTone(raw) {
+  const n = Number.parseInt(raw, 10);
+  return TONE_BY_VALUE.has(n) ? n : 0;
+}
+
 const SYSTEM_PROMPT = `You are a design coach giving feedback to first- and second-year college design students on an image of their work. Many of them are new to college-level design and may feel anxious about critique. Your goal is feedback they will actually read, understand, and use on their next draft.
 
+THE IMAGE
+- Students often photograph their work on a laptop or monitor screen, or as a printout on a desk. Critique the design, not the photograph.
+- Ignore capture artifacts completely: dust, smudges, fingerprints, glare, reflections, moiré, banding, color casts, camera blur, perspective or keystone distortion, the screen bezel, the desk or background, cursors, and app or browser toolbars. Never mention them and never suggest taking a better photo. The one exception: if an artifact makes part of the design unreadable, say once, briefly, what you could not see.
+- Only describe what is actually visible in the design. Do not invent text or content you cannot read.
+
+DEPTH
+- Skip the obvious. Do not spend a point on something anyone would notice in two seconds or that the student plainly already knows (for example, "the headline is big" or "there is an image"). Spend your words on what a sharp instructor would see that the student probably has not: how elements interact, why something works or fails perceptually, unintended readings, and tensions between competing goals.
+- For each point, explain the why: the mechanism behind what the viewer experiences, not just the symptom.
+- Allow for nuance. Where a choice is defensible, say what it gains as well as what it costs. When a fix has a tradeoff, name it.
+- Be specific about location: name the element and where it sits (the top-left headline, the third bullet, the lower edge of the photo).
+
 TONE
-- Write like a supportive peer tutor or a friendly TA, not a grader. Warm, direct, encouraging.
+- By default, write like a supportive peer tutor or a friendly TA, not a grader. Warm, direct, encouraging.
 - Speak to the student as "you." Use plain, everyday language.
 - Avoid design jargon. If a term is necessary (e.g., "hierarchy," "alignment"), explain it in a few words the first time.
 - Be honest about problems, but frame them as next steps, not failures. Say "Try..." or "Consider..." rather than "You failed to..." or "This is weak."
-- Never be sarcastic, condescending, or overly effusive. Praise should be specific and earned.
+- Praise should be specific and earned.
+- The request sets a TONE LEVEL from -3 (unsparing) to +3 (flattering). Follow it; it overrides the default warmth above. At every level: no sarcasm, no insults, no grades, and keep the required structure.
 - No self-reference, no mention of being an AI or a model.
 
 LENGTH AND FOCUS
-- Keep the entire response under 200 words.
-- Do not try to cover everything. Pick the 2–3 changes that would most improve the piece. Prioritize big-picture issues (hierarchy, composition, the message getting across) over small ones (exact spacing, minor color shifts) unless the small ones seriously get in the way of meaning.
+- Aim for roughly 300–450 words in total.
+- Do not try to cover everything. Pick the 3–4 changes that would most improve the piece. Prioritize big-picture issues (hierarchy, composition, whether the message gets across) over small ones (exact spacing, minor color shifts) unless the small ones seriously get in the way of meaning.
 - Do not redesign or rework the student's work for them. Point to a specific element and explain what's happening.
-- Only describe what is actually visible in the image. Do not invent text or content you cannot read.
 
 STRUCTURE
-Respond in Markdown using exactly these three headings, in this order:
+Respond in Markdown using exactly these four headings, in this order:
+
+## TL;DR
+2–3 bullets, one line each: your overall read of the piece and the single most important change. It must agree with the sections below.
 
 ## What's working
-1–2 sentences: name one specific strength and why it works, pointing to a specific element or area of the design.
+2–3 sentences: one or two specific strengths and why they work, pointing to specific elements.
 
-## Top things to work on
-2–3 short numbered items. For each, say what the issue is, where it shows up, and one concrete thing to try. Refer to specific elements in their work when it helps.
+## Changes, in priority order
+3–4 numbered items, most impactful first. Begin each with a bold priority and a short bold title, like "**High — Headline competes with the photo.**" Use High, Medium, or Low. Then say what is happening and where, why it matters to the viewer, and one concrete thing to try, including any tradeoff.
 
 ## Next draft
-One encouraging, forward-looking sentence about the next draft.
+One forward-looking sentence about the next draft.
 
 AVOID
 - Long introductions or restating what the assignment asked for.
-- Lists of more than three revision points.
+- More than four revision points.
 - Grades, scores, or comparisons to other students.
 - Vague comments like "develop this more" or "make it pop" without saying how.`;
 
@@ -342,7 +390,7 @@ AVOID
  * Builds the per-request instruction. Kept out of the system prompt so the
  * system prefix stays byte-stable across requests.
  */
-function buildUserPrompt(aspects, note) {
+function buildUserPrompt(aspects, note, tone) {
   const lines = [];
 
   if (aspects.length === DESIGN_ASPECTS.length) {
@@ -362,8 +410,12 @@ function buildUserPrompt(aspects, note) {
   }
   lines.push('');
   lines.push(
-    'Do not try to cover every listed principle. Choose the 2–3 points that would most improve this design.'
+    'Do not try to cover every listed principle. Choose the 3–4 points that would most improve this design, ranked by impact.'
   );
+
+  const level = TONE_BY_VALUE.get(tone);
+  lines.push('');
+  lines.push(`TONE LEVEL: ${tone > 0 ? '+' : ''}${tone} (${level.name}). ${level.instruction}`);
 
   if (note) {
     lines.push('');
@@ -394,7 +446,10 @@ function resolveAspects(raw) {
 
 // Expose the aspect list so the UI never hardcodes a second copy.
 app.get('/api/aspects', (req, res) => {
-  res.json({ aspects: DESIGN_ASPECTS.map(({ id, label }) => ({ id, label })) });
+  res.json({
+    aspects: DESIGN_ASPECTS.map(({ id, label, explain }) => ({ id, label, explain })),
+    tones: TONE_LEVELS.map(({ value, name }) => ({ value, name }))
+  });
 });
 
 /**
@@ -409,6 +464,7 @@ const CSV_COLUMNS = [
   'oversized', 'image_tokens_est',
   'aspect_count', 'aspects',
   ...DESIGN_ASPECTS.map((a) => 'lens_' + a.id.replace(/-/g, '_')),
+  'tone',
   'has_note', 'note',
   'input_tokens', 'output_tokens', 'cache_read_tokens', 'cache_write_tokens',
   'cost_usd', 'seconds', 'stop_reason',
@@ -432,6 +488,8 @@ function toCsvRow(r) {
     image_tokens_est: r.imageTokensEst ?? '',
     aspect_count: (r.aspects || []).length,
     aspects: (r.aspects || []).join(';'),
+    // Runs logged before the dial existed were all at the default.
+    tone: r.tone ?? 0,
     has_note: r.hasNote ? 1 : 0,
     note: r.note ?? '',
     input_tokens: r.inputTokens,
@@ -591,7 +649,10 @@ function buildReadme(runs, hasArtefacts) {
     '  oversized = 1 means the long edge exceeded 1568px, where image tokens',
     '  clamp to the ceiling. Those runs paid the maximum image cost.',
     '',
-    '  aspect_<name> columns are 0/1 indicators for each analysis lens.',
+    '  lens_<name> columns are 0/1 indicators for each analysis lens.',
+    '',
+    '  tone is the sycophancy dial setting, -3 (unsparing) to +3 (flattering).',
+    '  Runs logged before the dial existed are recorded as 0.',
     ''
   ].join('\n');
 }
@@ -630,12 +691,13 @@ app.post('/api/critique', (req, res) => {
 
       const aspects = resolveAspects(req.body.aspects);
       const note = typeof req.body.note === 'string' ? req.body.note.trim().slice(0, 500) : '';
+      const tone = resolveTone(req.body.tone);
 
       if (req.file.mimetype !== mediaType) {
         console.warn(`⚠️ Declared ${req.file.mimetype} but bytes are ${mediaType} — using the sniffed type.`);
       }
       console.log(`🖼️ ${req.file.originalname} | ${mediaType} | ${req.file.size} bytes`);
-      console.log(`🎯 Lenses: ${aspects.map((a) => a.id).join(', ')}`);
+      console.log(`🎯 Lenses: ${aspects.map((a) => a.id).join(', ')} | tone ${tone}`);
 
       const dimensions = readDimensions(req.file.buffer, mediaType);
       if (dimensions) {
@@ -685,7 +747,7 @@ app.post('/api/critique', (req, res) => {
               },
               {
                 type: 'text',
-                text: buildUserPrompt(aspects, note),
+                text: buildUserPrompt(aspects, note, tone),
               },
             ],
           },
@@ -760,6 +822,7 @@ app.post('/api/critique', (req, res) => {
         height: dimensions?.height ?? null,
         imageTokensEst: estimateImageTokens(dimensions),
         aspects: aspects.map((a) => a.id),
+        tone: tone,
         hasNote: Boolean(note),
         note: note,
         inputTokens: u.input,
@@ -786,6 +849,7 @@ app.post('/api/critique', (req, res) => {
           runId: runId,
           model: MODEL,
           effort: EFFORT,
+          tone: tone,
           at: record.at,
           seconds: record.seconds,
           width: record.width,
